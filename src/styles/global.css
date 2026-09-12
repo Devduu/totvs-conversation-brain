@@ -1,0 +1,452 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Inter', sans-serif; overflow: hidden; }
+#root { height: 100%; display: flex; flex-direction: column; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+textarea { resize: none; }
+button { font-family: 'Inter', sans-serif; cursor: pointer; }
+
+/* Micro-interactions */
+.mi-btn { transition: transform 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+.mi-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(31,181,219,0.28), 0 0 0 1px rgba(31,181,219,0.30); background-color: #56D6F2 !important; }
+.mi-btn:active { transform: scale(0.97); }
+
+.mi-btn-demo { transition: transform 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+.mi-btn-demo:hover { transform: translateY(-2px); background-color: #1FB5DB !important; color: #002233 !important; box-shadow: 0 4px 12px rgba(31,181,219,0.18); }
+.mi-btn-demo:hover .mi-arrow { transform: translateX(4px); color: #002233 !important; }
+.mi-btn-demo:active { transform: scale(0.97); }
+.mi-btn:hover .mi-arrow { transform: translateX(4px); }
+
+.mi-btn-secondary { transition: transform 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, color 180ms ease-out; }
+.mi-btn-secondary:hover { transform: translateY(-2px); border-color: #1FB5DB !important; color: #1FB5DB !important; background-color: rgba(31,181,219,0.06) !important; }
+.mi-btn-secondary:active { transform: scale(0.97); }
+.mi-btn-secondary:hover .mi-dl { transform: translateY(2px); color: #1FB5DB; }
+
+.lang-opt:hover { background-color: rgba(31,181,219,0.06) !important; color: #1FB5DB !important; }
+.lang-opt:active { transform: scale(0.97); }
+
+.stats-chip:hover { border-color: #1FB5DB !important; color: #1FB5DB !important; background-color: rgba(31,181,219,0.06) !important; transform: translateY(-1px); }
+.stats-chip:hover .sc-label, .stats-chip:hover .sc-value { color: #1FB5DB !important; }
+.stats-chip:hover .sc-arrow { transform: translateY(2px); color: #1FB5DB !important; }
+.stats-chip:active { transform: scale(0.98); }
+
+.cc-more { transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out, transform 100ms ease-out; }
+.cc-more:hover { background-color: rgba(31,181,219,0.10) !important; border-color: rgba(31,181,219,0.30) !important; color: #1FB5DB !important; }
+.cc-more:active { transform: scale(0.95); }
+.cc-menu-item { transition: background-color 120ms ease-out, color 120ms ease-out; }
+.cc-menu-item:hover { background-color: rgba(31,181,219,0.10) !important; color: #1FB5DB !important; }
+.brain-panel-item:hover { background-color: rgba(255,255,255,0.04); transform: translateY(-1px); }
+.brain-panel-item:hover .brain-panel-bar { filter: brightness(1.25); }
+.brain-insight-link:hover { color: #56D6F2 !important; text-shadow: 0 0 12px rgba(31,181,219,0.45); transform: translateY(-1px); }
+.brain-insight-link:hover .bi-arrow { transform: translateX(4px); }
+.brain-insight-link:active { transform: scale(0.97); }
+
+.brain-rival-item:hover .brain-rival-bar { transform: scaleY(1.45); filter: brightness(1.30); }
+.brain-rival-item:hover .brain-rival-num { filter: brightness(1.25); text-shadow: 0 0 8px rgba(240,170,70,0.55); }
+.brain-rival-item:hover .brain-rival-name { color: var(--text) !important; }
+.brain-search-btn:hover { color: #1FB5DB !important; background-color: rgba(31,181,219,0.10) !important; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-more, .cc-menu-item, .wc-word, .brain-panel-item, .brain-panel-bar, .brain-insight-link, .bi-arrow, .brain-rival-bar, .brain-rival-num, .brain-rival-name, .brain-search-btn, .mi-btn-demo { transition: none !important; }
+  .cc-more:active, .wc-word, .brain-panel-item:hover, .brain-insight-link:hover, .brain-insight-link:active, .brain-rival-item:hover .brain-rival-bar, .mi-btn-demo:hover, .mi-btn-demo:active { transform: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stats-chip, .sc-arrow, .sc-label, .sc-value { transition: none !important; }
+  .stats-chip:hover, .stats-chip:active { transform: none !important; }
+  .stats-chip:hover .sc-arrow { transform: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lang-pill, .lang-opt { transition: none !important; }
+  .lang-opt:active { transform: none !important; }
+}
+
+.mi-tab-color { transition: color 180ms ease-out; }
+.mi-tab-color:hover { color: #1FB5DB !important; }
+
+.mi-tab { position: relative; transition: color 180ms ease-out; }
+.mi-tab::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: 0;
+  height: 2px; background: #1FB5DB; border-radius: 2px;
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform 200ms ease-out;
+}
+.mi-tab:hover { color: #1FB5DB !important; }
+.mi-tab:hover::after { transform: scaleX(1); }
+
+.mi-howcard { transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out; }
+.mi-howcard:hover { transform: translateY(-4px); border-color: rgba(31,181,219,0.40) !important; box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(31,181,219,0.25), 0 0 24px rgba(31,181,219,0.18); }
+.mi-howcard .mi-howicon { transition: transform 200ms ease-out; transform-origin: center; display: inline-flex; }
+.mi-howcard:hover .mi-howicon { transform: scale(1.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mi-btn, .mi-tab, .mi-tab::after, .mi-howcard, .mi-howcard .mi-howicon, .mi-btn-secondary, .mi-arrow, .mi-dl { transition: none !important; }
+  .mi-btn:hover, .mi-btn:active, .mi-howcard:hover, .mi-btn-secondary:hover, .mi-btn-secondary:active { transform: none !important; }
+  .mi-tab:hover::after { transform: scaleX(1); }
+}
+
+/* Brain — category chips & legend interactions */
+.chip-cat { cursor: pointer; transition: transform 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out, background-color 180ms ease-out; }
+.chip-cat:hover { transform: translateY(-1px); border-color: var(--chip-color) !important; color: var(--chip-color) !important; }
+.legend-item { transition: background-color 180ms ease-out; }
+.legend-item:hover { background-color: rgba(255,255,255,0.05) !important; }
+.legend-item:hover .legend-dot { transform: scale(1.15); }
+@media (prefers-reduced-motion: reduce) {
+  .chip-cat, .chip-cat:hover, .legend-item, .legend-dot { transition: none !important; transform: none !important; }
+}
+
+/* ── Dashboard interactions ───────────────────────────────────── */
+/* Cards de indicador: anel de brilho, numero e sparkline reagindo ao hover */
+.dash-kpi { transition: transform 220ms cubic-bezier(.4,0,.2,1), box-shadow 220ms ease-out, border-color 220ms ease-out; }
+.dash-kpi:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.16) !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.07); }
+.dash-orb { transition: transform 360ms cubic-bezier(.4,0,.2,1), opacity 360ms ease-out; }
+.dash-kpi:hover .dash-orb { transform: scale(1.7); opacity: 0.2; }
+.dash-num { transition: text-shadow 220ms ease-out, filter 220ms ease-out; }
+.dash-kpi:hover .dash-num { filter: brightness(1.05); }
+.dash-spark { transition: filter 220ms ease-out; }
+.dash-kpi:hover .dash-spark { filter: brightness(1.12); }
+
+/* Pattern cards: lift, accent ring, icon springs, arrow slides */
+.dash-pat { transition: transform 200ms cubic-bezier(.4,0,.2,1), box-shadow 200ms ease-out, border-color 200ms ease-out; }
+.dash-pat:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.16) !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.07); }
+.dash-pat-icon { transition: transform 260ms cubic-bezier(.34,1.56,.64,1); transform-origin: center; display: inline-flex; }
+.dash-pat:hover .dash-pat-icon { transform: scale(1.16) rotate(-5deg); }
+
+/* Link em ciano com a seta deslizando no hover */
+.dash-link { transition: color 160ms ease-out, transform 160ms ease-out; }
+.dash-link:hover { color: #56D6F2 !important; }
+.dash-link:active { transform: scale(0.97); }
+.dash-arrow { display: inline-block; transition: transform 180ms ease-out; }
+.dash-link:hover .dash-arrow, .dash-pat:hover .dash-arrow { transform: translateX(5px); }
+
+/* Risk-table rows */
+.dash-trow { transition: background-color 150ms ease-out; }
+.dash-trow:hover { background-color: rgba(31,181,219,0.06) !important; }
+.dash-cli { transition: color 150ms ease-out; }
+.dash-trow:hover .dash-cli { color: #1FB5DB !important; }
+.dash-verbtn { transition: background-color 150ms ease-out, transform 120ms ease-out, box-shadow 150ms ease-out; }
+.dash-verbtn:hover { background-color: rgba(31,181,219,0.18) !important; box-shadow: 0 0 0 1px rgba(31,181,219,0.45); transform: translateY(-1px); }
+.dash-verbtn:active { transform: scale(0.96); }
+
+/* Celulas do mapa de calor */
+.dash-heat { transition: transform 150ms cubic-bezier(.4,0,.2,1), box-shadow 150ms ease-out, filter 150ms ease-out; }
+.dash-heat:hover { transform: scale(1.12); filter: brightness(1.28); z-index: 2;
+  box-shadow: 0 5px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.18); }
+
+/* Seletor de periodo do Dashboard */
+.dash-period { transition: background-color 150ms ease-out, color 150ms ease-out; }
+.dash-period:hover { color: #1FB5DB !important; background-color: rgba(31,181,219,0.07) !important; }
+
+/* Section cards: subtle lift + cyan ring */
+.dash-card { transition: transform 220ms cubic-bezier(.4,0,.2,1), box-shadow 220ms ease-out, border-color 220ms ease-out; }
+.dash-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,255,255,0.06); }
+
+/* Entrada: anima apenas `translate`, nunca a opacidade, para o conteudo
+   visible even if the animation is paused (e.g. background tab), and so hover
+   `transform` stays free. */
+@keyframes dashRise { from { translate: 0 18px; } to { translate: 0 0; } }
+.dash-rise { animation: dashRise 560ms cubic-bezier(.2,.7,.2,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-kpi, .dash-pat, .dash-card, .dash-heat, .dash-orb, .dash-pat-icon, .dash-arrow,
+  .dash-num, .dash-spark, .dash-trow, .dash-cli, .dash-verbtn, .dash-period, .dash-link { transition: none !important; }
+  .dash-kpi:hover, .dash-pat:hover, .dash-card:hover, .dash-heat:hover, .dash-verbtn:hover { transform: none !important; }
+  .dash-rise { animation: none !important; }
+}
+
+/* ── Reacao ao passar o mouse nos cards ───────────────────────────────────
+   Mesmo movimento que o Dashboard ja tinha, agora disponivel para as outras
+   abas, para o projeto ter um comportamento unico.
+
+   .card-kpi  cartoes de indicador (numero grande): sobe 4px
+   .card-sec  cartoes maiores de conteudo e de grafico: sobe 2px
+
+   Os valores sao identicos aos de .dash-kpi e .dash-card, que continuam
+   valendo no Dashboard. */
+.card-kpi { transition: transform 220ms cubic-bezier(.4,0,.2,1), box-shadow 220ms ease-out, border-color 220ms ease-out; }
+.card-kpi:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.16) !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.07); }
+.card-kpi:hover .r-num { filter: brightness(1.06); }
+
+.card-sec { transition: transform 220ms cubic-bezier(.4,0,.2,1), box-shadow 220ms ease-out, border-color 220ms ease-out; }
+.card-sec:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,255,255,0.06); }
+
+/* O card com o mouse em cima passa a ser desenhado por cima dos vizinhos.
+   Sem isso o card de baixo cobria a sombra e ela aparecia cortada numa linha
+   reta. Funciona sem mexer no posicionamento porque todos esses cards sao
+   itens de flex ou de grade. */
+.card-kpi:hover, .card-sec:hover { z-index: 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-kpi, .card-sec { transition: none !important; }
+  .card-kpi:hover, .card-sec:hover { transform: none !important; }
+  .card-kpi:hover .r-num { filter: none !important; }
+}
+
+/* Premium background: dot grid + aurora mesh */
+.app-bg {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 12% -8%, rgba(168,97,230,0.18), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 92% 5%, rgba(31,181,219,0.10), transparent 65%),
+    radial-gradient(ellipse 70% 50% at 80% 100%, rgba(230,61,146,0.06), transparent 60%);
+}
+.app-bg::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, #000 30%, transparent 100%);
+}
+.aurora-line {
+  position: absolute; top: 56px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(31,181,219,0.4), rgba(168,97,230,0.4), transparent);
+  filter: blur(0.5px);
+}
+
+/* Numeros de largura fixa, para os indicadores nao dancarem */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Card com efeito de vidro */
+.glass {
+  background: linear-gradient(180deg, rgba(15,29,49,0.85), rgba(11,22,38,0.72));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.glass:hover { border-color: rgba(255,255,255,0.12); }
+
+/* TOTVS Brand: Premium enterprise palette */
+:root {
+  --bg:       #050B14;
+  --surface:  #0B1626;
+  --surface2: #0B1626;
+  --surface3: #0F1D31;
+  --border:   rgba(255,255,255,0.06);
+  --border2:  rgba(255,255,255,0.12);
+
+  --cyan:     #1FB5DB;
+  --cyan-hover: #56D6F2;
+  --cyan-dim: rgba(31,181,219,0.10);
+  --cyan-glow:rgba(31,181,219,0.34);
+  --cyan-bright: #56D6F2;
+
+  --turquoise:#25D6B8;
+  --green:    #34C95A;
+  --green-dim:rgba(52,201,90,0.12);
+  --lime:     #CDED6A;
+  --lime-dim: rgba(205,237,106,0.12);
+  --amber:    #F2912A;
+  --amber-dim:rgba(242,145,42,0.12);
+  --yellow:   #F2B636;
+  --yellow-dim: rgba(242,182,54,0.12);
+  --purple:   #A861E6;
+  --purple-dim:rgba(168,97,230,0.14);
+  --purple-deep:#6A3F9E;
+  --red:      #F04C66;
+  --red-dim:  rgba(240,76,102,0.14);
+  --pink:     #E63D92;
+  --pink-dim: rgba(230,61,146,0.14);
+
+  --text:     #F5F7FA;
+  --text-sub: #8B96A8;
+  --text-dim: #5B6678;
+
+  --accent:      #1FB5DB;
+  --accent-dim:  rgba(31,181,219,0.10);
+  --accent-glow: rgba(31,181,219,0.34);
+}
+
+[data-theme="light"] {
+  --bg:       #F4F6FA;
+  --surface:  #FFFFFF;
+  --surface2: #EEF4F8;
+  --surface3: #E0EBF4;
+  --border:   #C8D8E8;
+  --border2:  #AFC4D8;
+  --text:     #071828;
+  --text-sub: #2A4F6A;
+  --text-dim: #7090AA;
+}
+
+[data-theme="midnight"] {
+  --bg:       #0A0F1F;
+  --surface:  #061826;
+  --surface2: #28282E;
+  --surface3: #102840;
+  --border:   #173A55;
+  --border2:  #1E4A6B;
+}
+
+/* Tweaks Panel */
+#tweaks-panel {
+  display: none; position: fixed; bottom: 20px; right: 20px; width: 268px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 18px; z-index: 9999;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+#tweaks-panel.visible { display: block; }
+.tweak-h { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 14px; }
+.tweak-row { margin-bottom: 12px; }
+.tweak-lbl { font-size: 11px; color: var(--text-sub); margin-bottom: 6px; display: block; }
+.tweak-opts { display: flex; gap: 5px; flex-wrap: wrap; }
+.tweak-btn { font-size: 11px; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border2); background: var(--surface3); color: var(--text-sub); cursor: pointer; transition: all 0.15s; }
+.tweak-btn.on { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+.tweak-sep { height: 1px; background: var(--border); margin: 12px 0; }
+
+/* ==========================================================================
+   CAMADA RESPONSIVA
+   Um unico conjunto de breakpoints para o projeto inteiro, para que todas as
+   abas se comportem igual. As telas usam estilo inline, que tem prioridade
+   sobre CSS, por isso as regras abaixo usam !important: elas so entram em
+   vigor abaixo da largura indicada e o desktop continua exatamente como e.
+
+   Cada largura tem UM bloco, do maior para o menor. Antes as regras de 1024px
+   e de 860px estavam espalhadas em blocos repetidos no fim do arquivo, o que
+   fazia procurar em tres lugares para entender uma unica largura.
+
+   1200px  notebook menor
+   1080px  o menu superior para de caber em uma linha
+   1024px  tablet deitado
+    860px  tablet em pe
+    720px  menu superior compacto
+    640px  celular grande
+    430px  celular
+
+   Classes de layout usadas aqui, todas marcadas no JSX:
+   r-screen          area rolavel de cada tela
+   r-nav*            menu superior (logo, abas, selo)
+   r-g2 ... r-g5     grades de 2 a 5 colunas
+   r-gmain / r-gside conteudo principal + painel lateral
+   r-graph / r-side  grafo do Cerebro e sua coluna de cards
+   r-heat            mapa de calor dor x concorrente
+   r-donut           rosca + legenda das Estatisticas
+   chart-card        cards de grafico das Estatisticas
+   r-scroll-x        blocos que rolam de lado (tabelas)
+   r-searchbox / r-searchrow   busca do Historico
+   r-h1 / r-h2 / r-num         tipografia grande
+   r-steps-line / r-brainsync / r-brainbar   elementos de apoio
+   ========================================================================== */
+
+/* Rolagem por toque suave em celular e tablet.
+   Aqui NAO entra limite de largura (max-width) nem centralizacao: a area
+   rolavel tem que ir ate a borda da janela, senao a barra de rolagem aparece
+   no meio da tela em vez de na borda. O conteudo ocupa a largura toda, como
+   sempre foi. */
+.r-screen { -webkit-overflow-scrolling: touch; }
+
+/* Blocos que precisam rolar de lado em vez de vazar (tabelas largas) */
+.r-scroll-x { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.r-scroll-x > table { min-width: 720px; }
+
+/* ---------- 1200px: notebook menor ---------- */
+@media (max-width: 1200px) {
+  .r-g5 { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+  .r-gside { grid-template-columns: minmax(0,1fr) 260px !important; }
+}
+
+/* ---------- 1080px: o menu superior para de caber em uma linha ----------
+   As abas passam a rolar na horizontal em vez de espremer, e os elementos de
+   apoio saem de cena por ordem de importancia. */
+@media (max-width: 1080px) {
+  .r-nav { padding: 0 14px !important; gap: 10px; }
+  .r-nav-tabs {
+    overflow-x: auto; flex: 1; justify-content: flex-start;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    /* A ultima aba visivel desaparece em degrade em vez de ser cortada no
+       meio da palavra: e o que mostra que a faixa de abas rola de lado. */
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 20px), transparent 100%);
+            mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 20px), transparent 100%);
+  }
+  .r-nav-tabs::-webkit-scrollbar { display: none; }
+  .r-nav-tabs > button { flex: 0 0 auto; }
+  .r-nav-badge { display: none !important; }
+}
+
+/* ---------- 1024px: tablet deitado ---------- */
+@media (max-width: 1024px) {
+  .r-screen { padding: 22px 18px !important; }
+  .r-screen-hero { padding: 44px 18px 24px !important; }
+
+  .r-g5 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; }
+  .r-g4 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; }
+  .r-g3 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; }
+
+  /* Painel lateral passa a ficar embaixo do conteudo principal */
+  .r-gside, .r-gmain { grid-template-columns: minmax(0,1fr) !important; gap: 16px !important; }
+
+  /* O grafo do Cerebro perde a altura flexivel quando empilha */
+  .r-graph { min-height: 460px !important; }
+  .r-side  { max-height: none !important; }
+
+  /* Mapa de calor: coluna de rotulo mais estreita */
+  .r-heat { grid-template-columns: 88px repeat(var(--heat-cols), minmax(0,1fr)) !important; }
+
+  /* Cards de grafico: a altura unica de 416px vale para a grade de duas
+     colunas do desktop. Aqui a grade reflui e o card fica mais estreito,
+     entao o minimo cai para o grafico ter espaco sem esticar o card. */
+  .chart-card { min-height: 360px !important; }
+
+  .r-h1 { font-size: 40px !important; }
+  .r-h2 { font-size: 20px !important; }
+  .r-num { font-size: 26px !important; }
+}
+
+/* ---------- 860px: tablet em pe ---------- */
+@media (max-width: 860px) {
+  .r-g3 { grid-template-columns: minmax(0,1fr) !important; }
+  .r-g2 { grid-template-columns: minmax(0,1fr) !important; gap: 14px !important; }
+  .r-steps-line { display: none !important; }
+  .r-graph { min-height: 400px !important; }
+
+  /* Rosca e legenda lado a lado nao cabem mais: a legenda desce para baixo do
+     desenho em vez de ser espremida. */
+  .r-donut { flex-wrap: wrap !important; }
+
+  /* Busca do Historico ocupa a linha inteira quando o espaco aperta */
+  .r-searchbox { flex: 1 0 100% !important; }
+  .r-searchrow > button { flex: 1 1 auto; }
+
+  /* Rodape do grafo do Cerebro mostra so a busca */
+  .r-brainsync { display: none !important; }
+  .r-brainbar > div:first-child { max-width: none !important; }
+}
+
+/* ---------- 720px: menu superior compacto ---------- */
+@media (max-width: 720px) {
+  .r-nav { height: 56px !important; padding: 0 10px !important; }
+  .r-nav-brand { display: none !important; }
+  .r-nav-sep { display: none !important; }
+  .r-nav-logo { height: 26px !important; }
+  .r-nav-tabs > button { padding: 6px 10px !important; font-size: 12px !important; }
+}
+
+/* ---------- 640px: celular grande ---------- */
+@media (max-width: 640px) {
+  .r-screen { padding: 16px 12px !important; }
+  .r-screen-hero { padding: 28px 12px 20px !important; }
+
+  .r-g5, .r-g4 { grid-template-columns: minmax(0,1fr) !important; }
+  .r-heat { grid-template-columns: 68px repeat(var(--heat-cols), minmax(0,1fr)) !important; gap: 2px !important; }
+
+  /* Area de toque. No desktop os botoes tem 24 a 27px de altura, o que se
+     acerta com o mouse mas nao com o dedo. Aqui todo elemento clicavel passa
+     a ter 34px de altura minima; o texto e o estilo continuam iguais. */
+  button, select, input { min-height: 34px !important; }
+
+  .r-h1 { font-size: 32px !important; line-height: 1.12 !important; }
+  .r-h2 { font-size: 20px !important; }
+  .r-num { font-size: 26px !important; }
+  .r-graph { min-height: 340px !important; }
+  .r-card { padding: 14px !important; }
+}
+
+/* ---------- 430px: celular ---------- */
+@media (max-width: 430px) {
+  .r-screen { padding: 14px 10px !important; }
+  .r-h1 { font-size: 26px !important; }
+  .r-num { font-size: 20px !important; }
+}

@@ -1,0 +1,16 @@
+node_modules
+dist
+.DS_Store
+*.log
+.vite
+
+# artefatos de ferramentas locais e do editor
+.remember
+.vscode
+.idea
+*.swp
+vite.config.js.timestamp-*
+
+# variaveis de ambiente (o .env.example fica, o .env nao)
+.env
+.env.local
