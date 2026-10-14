@@ -1,36 +1,78 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '../components/ui/Card';
 import { T, seg } from '../data/i18n';
 import { getHistorico, getReuniao } from '../services/api';
 import { scoreColor } from '../lib/colors';
-// Tela de Historico: todas as reunioes ja vinculadas ao Cerebro.
-// Busca, filtros, ordenacao e paginacao sobre a mesma base da tabela.
+import { pontosDaSerie, linhaReta } from '../lib/curva';
+// Tela de Historico: as reunioes registradas, vinculadas ao Cerebro ou
+// pendentes de revisao. Busca, filtros, ordenacao e paginacao sobre a mesma
+// base da tabela.
+
+// Busca sem diferenca de acento e de maiuscula: "integracao" acha "Integração"
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const DIA_MS = 24 * 60 * 60 * 1000;
+const FAIXAS_SCORE = { risco: [0, 39], medio: [40, 69], bom: [70, 100] };
 function HistoryScreen({ lang, setScreen, setResult }) {
   const t = T[lang].hist;
-  const { HISTORY, LIMITE_RISCO } = getHistorico();
+  const { HISTORY, LIMITE_RISCO, LIMITE_CONFIANCA } = getHistorico();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState('recent');
   const [hovered, setHovered] = useState(null);
   const [porPagina, setPorPagina] = useState(5);
   const [pagina, setPagina] = useState(1);
+  // Atalho ⌘K / Ctrl+K leva o cursor para a busca, como no Cerebro
+  const buscaRef = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); buscaRef.current && buscaRef.current.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  // Filtros avancados. Antes eram botoes sem acao ("disponivel na Sprint 4");
+  // agora filtram de verdade, com as opcoes tiradas da propria lista.
+  const [fSegmento, setFSegmento] = useState('all');
+  const [fVendedor, setFVendedor] = useState('all');
+  const [fPeriodo, setFPeriodo] = useState('all');
+  const [fConcorrente, setFConcorrente] = useState('all');
+  const [fScore, setFScore] = useState('all');
+  const opcoes = (campo) => [...new Set(HISTORY.map(h => h[campo]).filter(v => v && v !== '—'))].sort();
+  const segmentos = opcoes('seg');
+  const vendedores = opcoes('vendedor');
+  const concorrentes = opcoes('conc');
+  const comFiltro = (setter) => (e) => { setter(e.target.value); setPagina(1); };
+  const filtrosAvancados = [fSegmento, fVendedor, fPeriodo, fConcorrente, fScore].filter(v => v !== 'all').length;
+  const limparTudo = () => { aplicarFiltro('all'); aplicarBusca(''); setFSegmento('all'); setFVendedor('all'); setFPeriodo('all'); setFConcorrente('all'); setFScore('all'); };
   // Trocar filtro ou busca precisa voltar para a primeira pagina, senao a
   // tabela pode ficar vazia num numero de pagina que nao existe mais.
   const aplicarFiltro = (v) => { setFilter(v); setPagina(1); };
   const aplicarBusca  = (v) => { setSearch(v); setPagina(1); };
 
+  // Em risco segue a regra da entidade no Java (saude abaixo de 40 ou risco de
+  // churn acima de 70). Sem esse campo (dados de exemplo), so o score.
+  const emRiscoH = (h) => (h.risco != null ? h.risco : h.score < LIMITE_RISCO);
+  const agora = Date.now();
   const filtered = HISTORY.filter(h => {
-    if (filter==='risk' && h.score>=LIMITE_RISCO) return false;
+    if (filter==='risk' && !emRiscoH(h)) return false;
     if (filter==='op' && !h.op) return false;
-    if (search) { const s=search.toLowerCase(); if (!h.cli.toLowerCase().includes(s) && !h.dor.toLowerCase().includes(s) && !h.conc.toLowerCase().includes(s)) return false; }
+    if (filter==='pend' && h.situacao !== 'PENDENTE') return false;
+    if (search) { const s=semAcento(search); if (![h.cli, h.dor, h.conc].some(v => semAcento(v).includes(s))) return false; }
+    if (fSegmento !== 'all' && h.seg !== fSegmento) return false;
+    if (fVendedor !== 'all' && h.vendedor !== fVendedor) return false;
+    if (fConcorrente === 'none' && h.conc !== '—') return false;
+    if (fConcorrente !== 'all' && fConcorrente !== 'none' && h.conc !== fConcorrente) return false;
+    if (fScore !== 'all') { const [min, max] = FAIXAS_SCORE[fScore]; if (h.score < min || h.score > max) return false; }
+    if (fPeriodo !== 'all' && h.dataIso) {
+      if (agora - new Date(h.dataIso).getTime() > Number(fPeriodo) * DIA_MS) return false;
+    }
     return true;
   });
-  // Ordenacao. Antes o <select> existia mas 'sortMode' so era lido no proprio
-  // value: a tabela nunca mudava de ordem.
+  // Ordenacao. 'recent' ordena pela data da reuniao, da mais nova para a mais antiga.
   const ordenado = [...filtered].sort((a,b) => {
     if (sortMode === 'score') return a.score - b.score;      // pior primeiro
     if (sortMode === 'conf')  return b.conf - a.conf;        // mais confiavel primeiro
-    return 0;                                                // 'recent': ordem da base
+    return String(b.dataIso || '').localeCompare(String(a.dataIso || ''));
   });
 
   // Paginacao real sobre o resultado ja filtrado e ordenado.
@@ -39,16 +81,26 @@ function HistoryScreen({ lang, setScreen, setResult }) {
   const inicio = (paginaAtual - 1) * porPagina;
   const visiveis = ordenado.slice(inicio, inicio + porPagina);
 
-  const totalRisk = '1,2M';
-  // Os dois cartoes abaixo saem da mesma base que a tabela mostra. Antes eram
-  // numeros fixos (62 e 87%) que nao batiam com as linhas listadas.
+  // Os cartoes saem da mesma base que a tabela mostra. Antes eram numeros
+  // fixos (62 e 87%) que nao batiam com as linhas listadas.
   const avgScore = Math.round(filtered.reduce((s,h)=>s+h.score,0)/Math.max(filtered.length,1));
-  const pctAltaConf = Math.round(filtered.filter(h=>h.conf>=85).length / Math.max(filtered.length,1) * 100);
+  const pctAltaConf = Math.round(filtered.filter(h=>h.conf>=LIMITE_CONFIANCA).length / Math.max(filtered.length,1) * 100);
+  const emRisco = filtered.filter(emRiscoH).length;
+  const noCerebro = filtered.filter(h => h.situacao === 'VINCULADO').length;
+  const temSituacao = HISTORY.some(h => h.situacao);
+  // Reunioes por mes da lista filtrada, para a linha do segundo cartao
+  const porMes = {};
+  filtered.forEach(h => { const m = String(h.dataIso || '').slice(0, 7); if (m) porMes[m] = (porMes[m] || 0) + 1; });
+  const serieMes = Object.keys(porMes).sort().map(m => porMes[m]);
+  const linhaSerie = linhaReta(pontosDaSerie(serieMes.length > 1 ? serieMes : [8, 12, 10, 18, 16, 22, 26, 28], 70, 36));
+  const avgTalk = Math.round(filtered.reduce((s,h)=>s+Number(String(h.talk).split('/')[0]),0)/Math.max(filtered.length,1));
   return (
     <div className="r-screen" style={{ flex:1, overflow:'auto', padding:'28px 26px' }}>
       <div style={{ marginBottom:22 }}>
         <h2 className="r-h2" style={{ fontSize:26, fontWeight:800, letterSpacing:'-0.03em' }}>{t.title}</h2>
-        <div style={{ fontSize:12, color:'var(--text-sub)', marginTop:3 }}>{t.sub}</div>
+        <div style={{ fontSize:12, color:'var(--text-sub)', marginTop:3 }}>{temSituacao
+          ? (lang==='pt'?'Todas as reuniões registradas: vinculadas ao Cérebro e pendentes de revisão':'All recorded meetings: linked to the Brain and pending review')
+          : t.sub}</div>
       </div>
 
       {/* Mini overview cards — 4 columns */}
@@ -61,7 +113,7 @@ function HistoryScreen({ lang, setScreen, setResult }) {
               letterSpacing:'0.08em', fontWeight:700, marginBottom:6 }}>{lang==='pt'?'Score médio':'Avg score'}</div>
             <div className="r-num" style={{ fontSize:32, fontWeight:600, color:'#A861E6', fontFamily:'DM Mono, monospace',
               fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>{avgScore}</div>
-            <div style={{ fontSize:10, color:'#F2912A', marginTop:5, fontWeight:600 }}>↓ -3 {lang==='pt'?'vs sem.':'vs week'}</div>
+            <div style={{ fontSize:10, color:'#F2912A', marginTop:5, fontWeight:600 }}>{filtered.length} {lang==='pt'?'reuniões':'meetings'}</div>
           </div>
           <svg width={56} height={36} viewBox="0 0 60 38">
             <path d="M 5 32 A 25 25 0 0 1 55 32" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={4} strokeLinecap="round"/>
@@ -74,18 +126,21 @@ function HistoryScreen({ lang, setScreen, setResult }) {
           border:'1px solid var(--border)', borderRadius:10, display:'flex', alignItems:'center', gap:14 }}>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:10, color:'var(--text-dim)', textTransform:'uppercase',
-              letterSpacing:'0.08em', fontWeight:700, marginBottom:6 }}>{lang==='pt'?'Esta semana':'This week'}</div>
+              letterSpacing:'0.08em', fontWeight:700, marginBottom:6 }}>{temSituacao ? (lang==='pt'?'Reuniões':'Meetings') : (lang==='pt'?'No Cérebro':'In the Brain')}</div>
             <div className="r-num" style={{ fontSize:32, fontWeight:600, color:'#1FB5DB', fontFamily:'DM Mono, monospace',
-              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>23</div>
-            <div style={{ fontSize:10, color:'#34C95A', marginTop:5, fontWeight:600 }}>↑ +5 {lang==='pt'?'vs sem. ant.':'vs prev week'}</div>
+              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>{filtered.length}</div>
+            <div style={{ fontSize:10, color:'#F04C66', marginTop:5, fontWeight:600 }}>
+              {temSituacao && <span style={{ color:'#1FB5DB' }}>{noCerebro} {lang==='pt'?'no Cérebro':'in the Brain'} · </span>}
+              {emRisco} {lang==='pt'?'em risco':'at risk'}</div>
           </div>
           <svg width={70} height={36} viewBox="0 0 70 36">
             <defs><linearGradient id="sp-hist" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#1FB5DB" stopOpacity="0.35"/>
               <stop offset="100%" stopColor="#1FB5DB" stopOpacity="0"/>
             </linearGradient></defs>
-            <path d="M0,28 L10,24 L20,26 L30,18 L40,20 L50,14 L60,10 L70,8 L70,36 L0,36 Z" fill="url(#sp-hist)"/>
-            <polyline points="0,28 10,24 20,26 30,18 40,20 50,14 60,10 70,8" fill="none" stroke="#1FB5DB" strokeWidth={1.5} strokeLinecap="round"/>
+            {/* Reunioes por mes da lista filtrada */}
+            <path d={`M${linhaSerie} L70,36 L0,36 Z`} fill="url(#sp-hist)"/>
+            <polyline points={linhaSerie} fill="none" stroke="#1FB5DB" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
         {/* 3. Talk Ratio médio */}
@@ -95,14 +150,14 @@ function HistoryScreen({ lang, setScreen, setResult }) {
             letterSpacing:'0.08em', fontWeight:700, marginBottom:6 }}>{lang==='pt'?'Talk Ratio méd.':'Avg talk ratio'}</div>
           <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
             <span style={{ fontSize:26, fontWeight:600, color:'#F2912A', fontFamily:'DM Mono, monospace',
-              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>58</span>
+              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>{avgTalk}</span>
             <span style={{ fontSize:15, color:'var(--text-dim)', fontFamily:'DM Mono' }}>/</span>
             <span style={{ fontSize:26, fontWeight:600, color:'#34C95A', fontFamily:'DM Mono, monospace',
-              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>42</span>
+              fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>{100-avgTalk}</span>
           </div>
           <div style={{ display:'flex', height:5, marginTop:9, borderRadius:6, overflow:'hidden' }}>
-            <div style={{ flex:58, background:'#F2912A' }}/>
-            <div style={{ flex:42, background:'#34C95A' }}/>
+            <div style={{ flex:avgTalk, background:'#F2912A' }}/>
+            <div style={{ flex:100-avgTalk, background:'#34C95A' }}/>
           </div>
           <div style={{ fontSize:10, color:'var(--text-dim)', marginTop:6,
             display:'flex', justifyContent:'space-between' }}>
@@ -117,7 +172,7 @@ function HistoryScreen({ lang, setScreen, setResult }) {
               letterSpacing:'0.08em', fontWeight:700, marginBottom:6 }}>{lang==='pt'?'Alta confiança':'High confidence'}</div>
             <div className="r-num" style={{ fontSize:32, fontWeight:600, color:'#34C95A', fontFamily:'DM Mono, monospace',
               fontFeatureSettings:'"tnum"', letterSpacing:'-0.03em', lineHeight:1 }}>{pctAltaConf}%</div>
-            <div style={{ fontSize:10, color:'var(--text-dim)', marginTop:5 }}>≥ 85% conf.</div>
+            <div style={{ fontSize:10, color:'var(--text-dim)', marginTop:5 }}>≥ {LIMITE_CONFIANCA}% conf.</div>
           </div>
           <svg width={54} height={54} viewBox="0 0 54 54">
             <circle cx={27} cy={27} r={22} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={5}/>
@@ -130,46 +185,61 @@ function HistoryScreen({ lang, setScreen, setResult }) {
       {/* Search + primary filters */}
       <div className="r-searchrow" style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
         <div className="r-searchbox" style={{ flex:1, position:'relative', minWidth:200 }}>
-          <input value={search} onChange={e=>aplicarBusca(e.target.value)} placeholder={t.ph}
+          <input ref={buscaRef} value={search} onChange={e=>aplicarBusca(e.target.value)} placeholder={t.ph}
             style={{ width:'100%', padding:'10px 56px 10px 14px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:13, fontFamily:'Inter', outline:'none' }}/>
           <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
             padding:'2px 7px', fontSize:10, fontFamily:'DM Mono, monospace',
             background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)',
             borderRadius:6, color:'var(--text-dim)' }}>⌘K</span>
         </div>
-        {[['all',t.f_all],['risk',t.f_risk],['op',t.f_op]].map(([id,lbl])=>(
+        {[['all',t.f_all],['risk',t.f_risk],['op',t.f_op], ...(temSituacao ? [['pend', lang==='pt'?'Pendentes':'Pending']] : [])].map(([id,lbl])=>(
           <button key={id} onClick={()=>aplicarFiltro(id)} style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${filter===id?'var(--accent)':'var(--border)'}`, background: filter===id?'var(--accent-dim)':'var(--surface)', color: filter===id?'var(--accent)':'var(--text-sub)', fontSize:12, fontWeight:600, cursor:'pointer' }}>{lbl}</button>
         ))}
       </div>
 
-      {/* Advanced filters row */}
-      <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
-        {[
-          lang==='pt'?'Segmento':'Segment',
-          lang==='pt'?'Vendedor':'Rep',
-          lang==='pt'?'Período':'Period',
-          lang==='pt'?'Concorrente':'Competitor',
-        ].map(lbl=>(
-          <button key={lbl} title={lang==='pt'?'Filtro avançado disponível na Sprint 4':'Advanced filter available in Sprint 4'} style={{
-            padding:'6px 11px', borderRadius:6, border:'1px solid var(--border)',
-            background:'var(--surface)', color:'var(--text-sub)', fontSize:11, fontWeight:500,
-            cursor:'default', fontFamily:'Inter'
-          }}>{lbl} <span style={{ color:'var(--text-dim)', marginLeft:3 }}>▼</span></button>
-        ))}
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 11px',
-          borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)' }}>
-          <span style={{ fontSize:11, color:'var(--text-sub)', fontWeight:500 }}>Score</span>
-          <div style={{ width:80, height:4, background:'var(--border)', borderRadius:6, position:'relative' }}>
-            <div style={{ position:'absolute', left:'20%', right:'30%', top:0, bottom:0,
-              background:'linear-gradient(90deg, #F04C66, #F2B636, #34C95A)', borderRadius:6 }}/>
-            <div style={{ position:'absolute', left:'20%', top:-3, width:10, height:10,
-              borderRadius:'50%', background:'#1FB5DB', border:'2px solid #050B14' }}/>
-            <div style={{ position:'absolute', left:'70%', top:-3, width:10, height:10,
-              borderRadius:'50%', background:'#1FB5DB', border:'2px solid #050B14' }}/>
+      {/* Advanced filters row: selects com a aparencia dos botoes de antes */}
+      {(() => {
+        const estilo = (ativo) => ({
+          padding:'6px 11px', borderRadius:6, border:`1px solid ${ativo ? 'var(--accent)' : 'var(--border)'}`,
+          background: ativo ? 'var(--accent-dim)' : 'var(--surface)', color: ativo ? 'var(--accent)' : 'var(--text-sub)',
+          fontSize:11, fontWeight:500, cursor:'pointer', fontFamily:'Inter', outline:'none'
+        });
+        const todos = lang==='pt' ? 'todos' : 'all';
+        return (
+          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
+            <select value={fSegmento} onChange={comFiltro(setFSegmento)} style={estilo(fSegmento!=='all')}>
+              <option value="all">{lang==='pt'?'Segmento':'Segment'}: {todos}</option>
+              {segmentos.map(v => <option key={v} value={v}>{seg(v, lang)}</option>)}
+            </select>
+            <select value={fVendedor} onChange={comFiltro(setFVendedor)} style={estilo(fVendedor!=='all')}>
+              <option value="all">{lang==='pt'?'Vendedor':'Rep'}: {todos}</option>
+              {vendedores.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select value={fPeriodo} onChange={comFiltro(setFPeriodo)} style={estilo(fPeriodo!=='all')}>
+              <option value="all">{lang==='pt'?'Período':'Period'}: {todos}</option>
+              <option value="30">{lang==='pt'?'Últimos 30 dias':'Last 30 days'}</option>
+              <option value="90">{lang==='pt'?'Últimos 90 dias':'Last 90 days'}</option>
+              <option value="180">{lang==='pt'?'Últimos 6 meses':'Last 6 months'}</option>
+              <option value="365">{lang==='pt'?'Últimos 12 meses':'Last 12 months'}</option>
+            </select>
+            <select value={fConcorrente} onChange={comFiltro(setFConcorrente)} style={estilo(fConcorrente!=='all')}>
+              <option value="all">{lang==='pt'?'Concorrente':'Competitor'}: {todos}</option>
+              {concorrentes.map(v => <option key={v} value={v}>{v}</option>)}
+              <option value="none">{lang==='pt'?'Sem concorrente':'No competitor'}</option>
+            </select>
+            <select value={fScore} onChange={comFiltro(setFScore)} style={estilo(fScore!=='all')}>
+              <option value="all">Score: {todos}</option>
+              <option value="risco">0 a 39 ({lang==='pt'?'risco':'at risk'})</option>
+              <option value="medio">40 a 69</option>
+              <option value="bom">70 a 100</option>
+            </select>
+            {(filtrosAvancados > 0 || filter !== 'all' || search) && (
+              <button onClick={limparTudo} style={{ background:'transparent', border:'none', cursor:'pointer',
+                color:'var(--text-dim)', fontSize:11, fontFamily:'Inter' }}>{lang==='pt'?'Limpar filtros':'Clear filters'}</button>
+            )}
           </div>
-          <span style={{ fontSize:10, color:'var(--text-dim)', fontFamily:'DM Mono, monospace' }}>20–70</span>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Summary bar */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
@@ -178,7 +248,7 @@ function HistoryScreen({ lang, setScreen, setResult }) {
         <div style={{ fontSize:12, color:'var(--text-sub)' }}>
           <b style={{ color:'var(--text)', fontFamily:'DM Mono, monospace' }}>{ordenado.length}</b> {lang==='pt'?'reuniões encontradas':'meetings found'}
           <span style={{ color:'var(--text-dim)', margin:'0 8px' }}>·</span>
-          {lang==='pt'?'valor em risco':'value at risk'}: <b style={{ color:'#F04C66', fontFamily:'DM Mono, monospace' }}>R$ {totalRisk}</b>
+          {lang==='pt'?'em risco':'at risk'}: <b style={{ color:'#F04C66', fontFamily:'DM Mono, monospace' }}>{emRisco}</b>
           <span style={{ color:'var(--text-dim)', margin:'0 8px' }}>·</span>
           {lang==='pt'?'score médio (filtro atual)':'avg score (current filter)'}: <b style={{ color:scoreColor(avgScore), fontFamily:'DM Mono, monospace' }}>{avgScore}</b>
         </div>
@@ -204,10 +274,10 @@ function HistoryScreen({ lang, setScreen, setResult }) {
               // Chave pela reuniao, nao pelo indice: com ordenacao ligada, o
               // indice muda de lugar e o destaque do mouse grudava na posicao
               // errada.
-              const chave = `${h.d}|${h.cli}`;
+              const chave = h.idReuniao ? String(h.idReuniao) : `${h.d}|${h.cli}`;
               const isHov = hovered === chave;
               return (
-              <tr key={chave} onClick={()=>{ setResult(getReuniao(h)); setScreen('result'); }}
+              <tr key={chave} onClick={async ()=>{ setResult(await getReuniao(h)); setScreen('result'); }}
                 onMouseEnter={()=>setHovered(chave)} onMouseLeave={()=>setHovered(null)}
                 style={{ borderBottom:'1px solid var(--border)', cursor:'pointer',
                   background: isHov ? 'rgba(31,181,219,0.04)' : 'transparent',
@@ -247,7 +317,7 @@ function HistoryScreen({ lang, setScreen, setResult }) {
                 <td style={{ padding:'12px 14px', color:'var(--text-sub)' }}>{h.acao} →</td>
                 <td style={{ padding:'12px 14px' }}>
                   {(()=>{
-                    const high = h.conf >= 85, mid = h.conf >= 65 && h.conf < 85;
+                    const high = h.conf >= LIMITE_CONFIANCA, mid = h.conf >= 50 && h.conf < LIMITE_CONFIANCA;
                     const col = high?'#34C95A':mid?'#F2B636':'#F04C66';
                     const bg = high?'rgba(52,201,90,0.10)':mid?'rgba(242,182,54,0.12)':'rgba(240,76,102,0.12)';
                     const icon = high?'✓':mid?'!':'✕';
@@ -276,7 +346,7 @@ function HistoryScreen({ lang, setScreen, setResult }) {
               <tr>
                 <td colSpan={t.cols.length} style={{ padding:'34px 14px', textAlign:'center', color:'var(--text-sub)', fontSize:13 }}>
                   {lang==='pt' ? 'Nenhuma reunião encontrada com esses filtros.' : 'No meetings found with these filters.'}
-                  <button onClick={()=>{ aplicarFiltro('all'); aplicarBusca(''); }} style={{
+                  <button onClick={limparTudo} style={{
                     marginLeft:10, padding:'4px 11px', borderRadius:6, border:'1px solid var(--accent)',
                     background:'var(--accent-dim)', color:'var(--accent)', fontSize:11, fontWeight:600,
                     cursor:'pointer', fontFamily:'Inter' }}>

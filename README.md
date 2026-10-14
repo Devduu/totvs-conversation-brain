@@ -35,8 +35,11 @@ A solução opera em duas camadas complementares:
 
 ## O que a interface entrega
 
+### Login
+O sistema abre numa tela de login e só libera as telas depois que um funcionário da TOTVS entra. O acesso segue o perfil de quem entrou (veja **Acesso e perfis**, mais abaixo). O usuário logado aparece no canto superior direito, com o botão de sair.
+
 ### Nova Análise
-A porta de entrada de uma reunião no sistema. Três fontes previstas: colar o texto, enviar arquivo ou conectar a ferramenta de reunião. Nesta versão, colar o texto está ativo; as outras duas estão sinalizadas como integração futura. Ao clicar em Analisar, o sistema mostra as etapas do processamento e calcula o score de confiança da própria análise.
+A porta de entrada de uma reunião no sistema. A transcrição pode ser colada ou enviada como arquivo `.txt`, `.vtt` ou `.srt`; conectar a ferramenta de reunião (Zoom, Meet, Teams) está sinalizado como integração futura. Ao clicar em Analisar, o sistema mostra as etapas do processamento, calcula o score de confiança e grava a reunião no nome de quem está logado.
 
 ### Resultados
 A leitura estruturada da reunião:
@@ -45,21 +48,39 @@ A leitura estruturada da reunião:
 - **Risco de Churn**, para o time priorizar quem precisa de atenção antes de decidir sair
 - **Talk Ratio**, o percentual de fala do vendedor, com alerta de coaching acima de 70%
 - **Sentimento** da conversa em três faixas
-- **Resumo executivo** e **dores identificadas**, cada uma pontuada por intensidade e acompanhada do **trecho original dito pelo cliente**, o que mantém a rastreabilidade da evidência
-- **Produtos TOTVS mencionados**, **concorrentes citados com contexto** e **oportunidades de upsell e cross-sell**
+- **Resumo executivo** e **dores identificadas**, cada uma pontuada por intensidade
+- **Produtos TOTVS mencionados**, **concorrentes citados com contexto** e **oportunidades de upsell e cross-sell**, com o valor estimado quando existe
 - **Próxima ação recomendada**
+- **Saúde do cliente**, olhando todas as reuniões dele (média, reuniões em risco, tendência), e **histórico do vendedor** (talk ratio médio e recomendação de mentoria)
+- **Transcrição da reunião**, para conferir de onde saiu cada indicador
+
+Numa reunião pendente de revisão, os botões **Aprovar** e **Descartar** gravam a decisão humana na API. O botão **Excluir** apaga a reunião e tudo que foi citado nela.
 
 ### Cérebro Comercial
-A rede de conhecimento, desenhada como um grafo interativo com simulação de forças. Os nós são clientes, dores, produtos, concorrentes e oportunidades; as ligações mostram o que apareceu junto. Tem busca por nó, filtro por tipo, zoom e pan, e um painel lateral com os insights derivados da rede.
+A rede de conhecimento, desenhada como um grafo interativo. O layout é calculado por simulação de forças antes de desenhar, e cada nó flutua de leve em volta da sua posição. Os nós são os clientes com mais reuniões, as dores, os produtos, os concorrentes e as oportunidades; as ligações mostram o que apareceu junto. Tem busca por nó, filtro por tipo, zoom e pan, e um painel lateral com os padrões detectados, as dores mais citadas, o risco médio por mês e o ranking de concorrentes.
 
 ### Estatísticas
-Os painéis do módulo de Data Science: frequência das dores, evolução das menções a cada concorrente mês a mês, distribuição dos scores, cruzamento entre dor e concorrente, os termos mais relevantes por TF-IDF e o agrupamento das reuniões por embeddings.
+Os painéis analíticos: frequência das dores, menções a cada concorrente mês a mês, produtos citados, distribuição dos scores, cruzamento entre dor e concorrente, os termos mais relevantes por TF-IDF e as reuniões espalhadas por score de saúde e talk ratio, coloridas por segmento, com as duas regras de alerta marcadas no gráfico. Exporta tudo em CSV.
 
 ### Dashboard
-A visão consolidada para o Diretor Comercial: indicadores do período, padrões que o sistema detectou sozinho, os clientes em maior risco e a curva de evolução do churn. Exporta relatório em CSV.
+A visão consolidada do Diretor Comercial, visível só para esse perfil: indicadores, padrões que o sistema detectou sozinho, os clientes em maior risco, o risco médio por mês (com quantas reuniões entraram em cada mês) e o mapa de concorrentes por segmento. Exporta as reuniões em CSV.
 
 ### Histórico
-Todas as reuniões já vinculadas ao Cérebro, com busca por cliente, dor ou concorrente, filtros de risco e oportunidade, ordenação e paginação. Clicar em uma linha reabre a análise completa daquela reunião.
+Todas as reuniões registradas, vinculadas ao Cérebro e pendentes de revisão, com busca por cliente, dor ou concorrente (sem diferença de acento), filtros por risco, oportunidade, pendência, segmento, vendedor, período, concorrente e faixa de score, ordenação e paginação. Clicar em uma linha reabre a análise completa daquela reunião.
+
+## Acesso e perfis
+
+O e-mail é conferido na tabela de usuários pela API (`GET /usuarios`). A senha é de demonstração, igual para todos, porque a API ainda não tem autenticação; a autenticação de verdade fica como etapa futura.
+
+| Usuário | E-mail | Perfil | O que vê |
+|---|---|---|---|
+| Marcelo Duarte | `marcelo.duarte@totvs.com.br` | Diretor Comercial | Todas as telas, inclusive o Dashboard |
+| Ana Ribeiro, Bruno Tavares, Carla Menezes, Diego Fontes | `nome.sobrenome@totvs.com.br` | Vendedor | Nova Análise, Resultados, Cérebro, Estatísticas e Histórico |
+| Fernanda Lima | `fernanda.lima@totvs.com.br` | Analista de CS | As mesmas telas do vendedor |
+
+Senha de demonstração: `totvs2026`. A tela de login já vem preenchida com o diretor, que enxerga tudo.
+
+Quem vê o Dashboard é decidido pela regra `podeVerPainelExecutivo` da entidade `Usuario` no Java, que só libera o perfil `DIRETOR`. É o mesmo recorte da proposta: o diretor é a persona primária, que precisa da visão consolidada; vendedores e analistas de CS são a persona secundária, que alimenta o sistema e usa a análise de cada reunião.
 
 ## O diferencial: score de confiança com revisão humana
 
@@ -75,11 +96,11 @@ Por isso o sistema avalia a **própria análise** antes de salvar. A regra está
 
 **Confiança alta** (os três critérios atendidos): a reunião é vinculada ao Cérebro automaticamente, sem ação do usuário.
 
-**Confiança baixa**: o sistema exibe um alerta, libera os campos para edição e **bloqueia o salvamento** até a revisão humana. O usuário corrige ou descarta.
+**Confiança baixa**: a reunião fica pendente e o sistema exibe um alerta. Ela só entra no Cérebro quando alguém aprova; se a análise não serve, a pessoa descarta.
 
 Isso é o oposto de uma IA que aceita tudo. O sistema assume que pode errar, e transforma essa dúvida em um passo explícito do fluxo.
 
-Para ver os dois caminhos funcionando, o Histórico tem dois exemplos na primeira página: a **Saúde Delta**, com 96% de confiança e salvamento automático, e a **Indústria Épsilon**, com 67%, que cai no fluxo de revisão.
+Com a API ligada, quem decide é o Java, pela regra da entidade `Reuniao` (confiança a partir de 70 vincula sozinha). Para ver o fluxo de revisão, use o botão **Pendentes** do Histórico e abra qualquer uma delas.
 
 ## Como rodar
 
@@ -103,25 +124,30 @@ Rode `npm run build` antes e leve a pasta `dist/`. Ela abre em qualquer navegado
 
 ## De onde vêm os dados
 
-Nenhuma tela busca dados por conta própria. **Todas passam por `src/services/api.js`.** Nesta versão, cada função de lá devolve os dados de exemplo que vivem em `src/data/`.
+Nenhuma tela busca dados por conta própria. **Todas passam por `src/services/api.js`.**
 
-Essa camada existe para que a integração com o backend não exija reescrever as telas. Quando a API Java estiver pronta, o trabalho é:
+Com o arquivo `.env` preenchido (`VITE_API_URL=http://localhost:8080/api`, veja `.env.example`), os dados vêm da API Java, que lê o banco Oracle. Sem a variável, ou com a API fora do ar, o site abre com os dados de exemplo de `src/data/`. Se aparecerem números como "1.126 reuniões" ou "R$ 2,8M", é sinal de que a API não está rodando.
 
-1. Copiar `.env.example` para `.env` e preencher `VITE_API_URL`
-2. Em `src/services/api.js`, trocar o corpo de cada função pela chamada HTTP correspondente
-
-O código de cada chamada já está escrito e comentado dentro da própria função, junto com o endpoint esperado. Os nomes devolvidos continuam os mesmos, então **nenhum arquivo de tela precisa ser alterado.**
-
-| Função | Endpoint previsto |
+| Função | Endpoint |
 |---|---|
-| `getDashboard()` | `GET /dashboard` |
-| `getHistorico()` | `GET /reunioes` |
-| `getCerebro()` | `GET /cerebro` |
-| `getEstatisticas()` | `GET /estatisticas` |
+| `carregarDados()` | `GET /dashboard`, `GET /cerebro` e `GET /estatisticas`, uma vez ao abrir |
 | `getReuniao(reuniao)` | `GET /reunioes/{id}` |
 | `analisarTranscricao(texto)` | `POST /analises` |
+| `revisarReuniao(id, aprovada)` | `POST /reunioes/{id}/revisao` |
+| `excluirReuniao(id)` | `DELETE /reunioes/{id}` |
+| `getDiagnosticoCliente(id)` | `GET /clientes/{id}/diagnostico` |
+| `getAvaliacaoVendedor(id)` | `GET /usuarios/{id}/avaliacao` |
+| `entrar(email, senha)` | `GET /usuarios` |
 
-Os códigos de reunião usados na interface (`MTG-2026-0801` a `MTG-2026-0808`) são **os mesmos códigos gravados no banco Oracle**, na coluna `ds_codigo` da tabela `T_TCB_REUNIAO`. Front e banco falam o mesmo identificador desde já.
+O banco guarda os nomes sem acento ("Lentidao em Relatorios"); a camada de dados devolve o acento das palavras conhecidas antes de mostrar na tela.
+
+### Para rodar com dados reais
+
+1. Subir a API Java (pasta `tcb-java`, `mvn spring-boot:run`) e esperar a mensagem de que ela iniciou.
+2. Nesta pasta, `npm run dev`.
+3. Abrir `http://localhost:5173` e entrar com o acesso de demonstração.
+
+Os dois terminais precisam ficar abertos enquanto o site estiver em uso.
 
 ## Segurança
 
@@ -129,7 +155,9 @@ O projeto foi auditado e o resultado está documentado aqui por transparência.
 
 ### Superfície de ataque
 
-Esta aplicação é um front-end estático: não tem servidor próprio, não tem autenticação, não recebe upload e não faz nenhuma chamada de rede nesta versão. Isso reduz a superfície de ataque a praticamente nada, mas não elimina a necessidade de cuidado.
+Esta aplicação é um front-end estático: não tem servidor próprio e só conversa com a API Java configurada em `VITE_API_URL`. O upload de transcrição é lido no próprio navegador e vira texto, sem enviar arquivo nenhum. O login é de demonstração e **não é autenticação**: ele confere o e-mail na API, mas a senha é a mesma para todos; a autenticação de verdade é etapa futura, no back-end.
+
+Para publicar o site apontando para uma API em outro endereço, esse endereço precisa entrar no `connect-src` da Content Security Policy abaixo, que hoje só libera a própria origem.
 
 ### O que foi verificado
 
@@ -165,7 +193,7 @@ Essa política foi testada com o site rodando: zero violações, zero erros de J
 
 O `npm audit` reporta avisos em `vite` e `esbuild`. Todos eles afetam **exclusivamente o servidor de desenvolvimento**, e dois deles são específicos do Windows. Nenhum atinge o site publicado, porque o build gera arquivos estáticos e o Vite não roda em produção.
 
-A atualização está planejada como primeira tarefa da Sprint 4, e não foi feita antes da entrega da Sprint 3 porque exige subir uma versão maior da ferramenta de build. Enquanto isso, a mitigação prática é a de sempre: não navegar em sites desconhecidos com o `npm run dev` aberto.
+A atualização continua planejada; ela exige subir uma versão maior da ferramenta de build. Enquanto isso, a mitigação prática é a de sempre: não navegar em sites desconhecidos com o `npm run dev` aberto.
 
 ### Próximo passo de segurança
 
@@ -187,11 +215,10 @@ Um teste dinâmico (DAST) só faz sentido depois do deploy, porque precisa de um
 
 Documentadas de propósito, porque um protótipo honesto vale mais que um protótipo que finge.
 
-- O motor de análise ainda não está conectado. A tela de Resultados exibe uma análise de exemplo. O **score de confiança**, por outro lado, é lógica real: ele avalia de verdade o texto que você colar.
-- Os indicadores agregados do Dashboard e das Estatísticas são ilustrativos nesta sprint. Eles passam a vir do banco quando a API entrar.
-- Os filtros da tela de Estatísticas são visuais nesta versão.
-- Botões marcados com a dica "Integração prevista para a Sprint 4" dependem de backend (CRM, geração de insights por IA, compartilhamento) e por isso ainda não executam ação.
-- A interface ainda não é totalmente operável por teclado, e alguns rótulos pequenos estão abaixo do contraste mínimo recomendado pela WCAG. Já está mapeado e entra na Sprint 4.
+- O motor de IA ainda não está conectado. Em Nova Análise, o front envia a transcrição junto com um resultado de exemplo, e a API aplica as regras e grava no Oracle; o **score de confiança** é calculado de verdade sobre o texto enviado.
+- O login é de demonstração: confere o usuário na API, mas a senha é única e não existe autenticação no back-end.
+- Os botões "Criar no CRM", "Criar tarefa", "Gerar mais insights" e a conexão com Zoom, Meet e Teams são etapas futuras e estão sinalizados assim na própria tela.
+- A interface ainda não é totalmente operável por teclado, e alguns rótulos pequenos estão abaixo do contraste mínimo recomendado pela WCAG.
 
 ## Equipe
 

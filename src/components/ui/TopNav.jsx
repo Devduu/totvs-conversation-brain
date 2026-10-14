@@ -1,7 +1,8 @@
 import { T } from '../../data/i18n';
+import { UserMenu } from './UserMenu';
 // Barra de navegacao do topo: troca de tela e troca de idioma.
 // A aba Resultados fica desabilitada enquanto nao existir uma analise.
-function TopNav({ screen, setScreen, hasResult, lang, setLang }) {
+function TopNav({ screen, setScreen, hasResult, lang, setLang, usuario, setUsuario }) {
   const t = T[lang];
   return (
     <nav className="r-nav" style={{
@@ -19,7 +20,8 @@ function TopNav({ screen, setScreen, hasResult, lang, setLang }) {
 
       <div className="r-nav-tabs" style={{ display:'flex', gap:4 }}>
         {[
-          { id:'dash', label: t.nav.dash },
+          // Painel executivo: so para quem a regra do Java libera (diretor)
+          ...(usuario && usuario.podeVerPainelExecutivo ? [{ id:'dash', label: t.nav.dash }] : []),
           { id:'input', label: t.nav.nova },
           { id:'result', label: t.nav.resultados, off: !hasResult },
           { id:'brain', label: t.nav.cerebro },
@@ -62,7 +64,8 @@ function TopNav({ screen, setScreen, hasResult, lang, setLang }) {
             }}>{l}</button>
           ))}
         </div>
-        <div className="r-nav-badge" style={{ fontSize:10, color:'#A861E6', fontFamily:'DM Mono, monospace', fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(168,97,230,0.10)', border:'1px solid rgba(168,97,230,0.28)', letterSpacing:'0.05em' }}>MVP · SPRINT 3</div>
+        <div className="r-nav-badge" style={{ fontSize:10, color:'#A861E6', fontFamily:'DM Mono, monospace', fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(168,97,230,0.10)', border:'1px solid rgba(168,97,230,0.28)', letterSpacing:'0.05em' }}>MVP · SPRINT 4</div>
+        <UserMenu usuario={usuario} setUsuario={setUsuario} lang={lang}/>
       </div>
     </nav>
   );

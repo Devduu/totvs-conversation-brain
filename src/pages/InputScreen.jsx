@@ -1,18 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import { Pill } from '../components/ui/Pill';
 import { useT } from '../context/AppContext';
-import { analisarTranscricao, getTranscricaoExemplo } from '../services/api';
+import { analisarTranscricao, getTranscricaoExemplo, getResumoPlataforma } from '../services/api';
 // Tela de Nova Analise: a porta de entrada de uma reuniao no sistema.
 // Tres fontes possiveis (colar, arquivo, ferramenta de reuniao); nesta sprint
 // apenas colar esta ativo. O botao Analisar calcula o score de confianca.
-function InputScreen({ onAnalyze, lang }) {
+function InputScreen({ onAnalyze, lang, usuario }) {
   const t = useT();
   const DEMO = getTranscricaoExemplo(lang);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [tab, setTab] = useState('paste');
-
+  const [erro, setErro] = useState('');
+  // Numeros reais da plataforma quando a API esta no ar
+  const resumo = getResumoPlataforma();
+  const arquivoRef = useRef(null);
+  const [arrastando, setArrastando] = useState(false);
+  // Upload: le o arquivo de texto no proprio navegador e joga o conteudo na
+  // aba "Colar texto", de onde segue o fluxo normal da analise.
+  const lerArquivo = (arquivo) => {
+    if (!arquivo) return;
+    if (!/\.(txt|vtt|srt)$/i.test(arquivo.name)) {
+      setErro(lang==='pt' ? 'Formato não suportado. Use .txt, .vtt ou .srt.' : 'Unsupported format. Use .txt, .vtt or .srt.');
+      return;
+    }
+    if (arquivo.size > 10 * 1024 * 1024) {
+      setErro(lang==='pt' ? 'Arquivo maior que 10MB.' : 'File larger than 10MB.');
+      return;
+    }
+    const leitor = new FileReader();
+    leitor.onload = () => { setErro(''); setText(String(leitor.result || '')); setTab('paste'); };
+    leitor.onerror = () => setErro(lang==='pt' ? 'Não foi possível ler o arquivo.' : 'Could not read the file.');
+    leitor.readAsText(arquivo, 'utf-8');
+  };
   const STAGES = lang==='pt'
     ? ['Organizando a transcrição','Identificando entidades','Calculando risco de churn','Gerando insights estratégicos']
     : ['Organizing the transcript','Identifying entities','Calculating churn risk','Generating strategic insights'];
@@ -28,27 +49,36 @@ function InputScreen({ onAnalyze, lang }) {
     clearTimeout(timeoutRef.current);
   }, []);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     // Sem texto, o botao carrega a transcricao de exemplo. Precisa trocar para
     // a aba "Colar texto" tambem, senao o textarea nem esta na tela e o
     // primeiro clique parecia nao fazer nada.
     if (!text.trim()) { setTab('paste'); setText(DEMO); return; }
-    const { resultado, confianca } = analisarTranscricao(text);
+    setErro('');
     setLoading(true); setStep(0);
+    // A animacao das etapas roda enquanto a API responde. Os dois terminam
+    // juntos: a tela de resultado so abre com a resposta em maos.
     let i = 0;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      i++; setStep(i);
-      if (i >= STAGES.length) {
-        clearInterval(timerRef.current);
-        timeoutRef.current = setTimeout(() => { setLoading(false); onAnalyze(resultado, confianca); }, 400);
-      }
+      i++; setStep(Math.min(i, STAGES.length - 1));
     }, 700);
+    try {
+      // A reuniao fica no nome de quem esta logado; sem login, vendedora padrao
+      const { resultado, confianca } = await analisarTranscricao(text, { emailVendedor: usuario && usuario.email });
+      clearInterval(timerRef.current);
+      setStep(STAGES.length);
+      timeoutRef.current = setTimeout(() => { setLoading(false); onAnalyze(resultado, confianca); }, 400);
+    } catch (e) {
+      clearInterval(timerRef.current);
+      setLoading(false);
+      setErro(e.message || String(e));
+    }
   };
 
   const tabs = [
     { id:'paste',  label: lang==='pt'?'Colar texto':'Paste text',          icon:'¶' },
-    { id:'upload', label: lang==='pt'?'Upload .txt/.docx':'Upload .txt/.docx', icon:'↑' },
+    { id:'upload', label: lang==='pt'?'Upload .txt/.vtt/.srt':'Upload .txt/.vtt/.srt', icon:'↑' },
     { id:'connect',label: lang==='pt'?'Conectar Zoom/Meet':'Connect Zoom/Meet', icon:'⌁' },
   ];
   const howSteps = lang==='pt'
@@ -109,7 +139,9 @@ function InputScreen({ onAnalyze, lang }) {
             <div style={{ width:6, height:6, borderRadius:'50%', background:'#34C95A',
               animation:'blink 2s infinite' }}/>
             <span style={{ fontSize:12, color:'#34C95A', fontWeight:600, letterSpacing:'0.02em' }}>
-              {lang==='pt' ? 'Sistema ativo · MVP · 1.126 reuniões analisadas' : 'System active · MVP · 1,126 meetings analyzed'}
+              {resumo
+                ? (lang==='pt' ? `Sistema ativo · MVP · ${resumo.reunioes.toLocaleString('pt-BR')} reuniões no Cérebro` : `System active · MVP · ${resumo.reunioes.toLocaleString('en-US')} meetings in the Brain`)
+                : (lang==='pt' ? 'Sistema ativo · MVP · 1.126 reuniões analisadas' : 'System active · MVP · 1,126 meetings analyzed')}
             </span>
           </div>
           <h1 className="r-h1" style={{ fontSize:52, fontWeight:700, letterSpacing:'-0.04em', lineHeight:1.04, marginBottom:14, color:'#F5F7FA' }}>
@@ -161,15 +193,20 @@ function InputScreen({ onAnalyze, lang }) {
 
           {tab==='upload' && (
             <div style={{ padding:'28px 20px', textAlign:'center' }}>
-              <div style={{ border:'2px dashed var(--border)', borderRadius:10, padding:'36px 16px',
-                background:'rgba(31,181,219,0.02)', cursor:'pointer', transition:'all 0.2s' }}
-                onClick={()=>{ setTab('paste'); setText(DEMO); }}>
+              <input ref={arquivoRef} type="file" accept=".txt,.vtt,.srt,text/plain" style={{ display:'none' }}
+                onChange={e=>{ lerArquivo(e.target.files && e.target.files[0]); e.target.value=''; }}/>
+              <div style={{ border:`2px dashed ${arrastando ? '#1FB5DB' : 'var(--border)'}`, borderRadius:10, padding:'36px 16px',
+                background: arrastando ? 'rgba(31,181,219,0.08)' : 'rgba(31,181,219,0.02)', cursor:'pointer', transition:'all 0.2s' }}
+                onClick={()=>arquivoRef.current && arquivoRef.current.click()}
+                onDragOver={e=>{ e.preventDefault(); setArrastando(true); }}
+                onDragLeave={()=>setArrastando(false)}
+                onDrop={e=>{ e.preventDefault(); setArrastando(false); lerArquivo(e.dataTransfer.files && e.dataTransfer.files[0]); }}>
                 <div style={{ fontSize:32, color:'#1FB5DB', marginBottom:10 }}>↑</div>
                 <div style={{ fontSize:15, fontWeight:600, color:'var(--text)', marginBottom:6 }}>
                   {lang==='pt'?'Arraste seu arquivo aqui':'Drag your file here'}
                 </div>
                 <div style={{ fontSize:12, color:'var(--text-dim)' }}>
-                  {lang==='pt'?'Formatos aceitos: .txt, .docx, .vtt, .srt (máx. 10MB)':'Accepted: .txt, .docx, .vtt, .srt (max 10MB)'}
+                  {lang==='pt'?'Formatos aceitos: .txt, .vtt, .srt (máx. 10MB)':'Accepted: .txt, .vtt, .srt (max 10MB)'}
                 </div>
                 <div style={{ marginTop:14, fontSize:11, color:'#1FB5DB', fontWeight:600 }}>
                   {lang==='pt'?'ou clique para selecionar':'or click to browse'}
@@ -247,6 +284,7 @@ function InputScreen({ onAnalyze, lang }) {
             borderTop: tab==='paste' && !loading ? 'none' : '1px solid var(--border)' }}>
             <span style={{ fontSize:12, color:'var(--text-dim)' }}>
               {loading ? STAGES[Math.min(step, STAGES.length-1)]+'…'
+                : erro ? <span style={{ color:'var(--red)' }}>{erro}</span>
                 : text ? `${text.length} ${t.input.chars}`
                 : tab==='paste' ? t.input.fallback
                 : lang==='pt'?'Selecione uma fonte acima':'Choose a source above'}
@@ -268,13 +306,16 @@ function InputScreen({ onAnalyze, lang }) {
         <div style={{ marginTop:24 }}>
           <div style={{ textAlign:'center', fontSize:10, color:'#5B6678',
             textTransform:'uppercase', letterSpacing:'0.18em', fontWeight:700, marginBottom:10 }}>
-            {lang==='pt'?'Performance da plataforma em tempo real':'Real-time platform performance'}
+            {resumo ? (lang==='pt'?'A plataforma hoje':'The platform today') : (lang==='pt'?'Performance da plataforma em tempo real':'Real-time platform performance')}
           </div>
           {/* A faixa sobe como um bloco so: os tres numeros sao um cartao unico,
               nao tres cartoes separados. */}
           <div className="card-sec" style={{ display:'flex', background:'linear-gradient(180deg, rgba(15,29,49,0.85), rgba(11,22,38,0.72))',
             border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', backdropFilter:'blur(12px)' }}>
-            {t.input.stats.map(([n,l], i) => {
+            {(resumo ? (lang==='pt'
+              ? [[resumo.reunioes.toLocaleString('pt-BR'),'Reuniões no Cérebro'],[`${resumo.pctAltaConfianca}%`,'Com alta confiança'],[String(resumo.segmentos),'Segmentos atendidos']]
+              : [[resumo.reunioes.toLocaleString('en-US'),'Meetings in the Brain'],[`${resumo.pctAltaConfianca}%`,'High confidence'],[String(resumo.segmentos),'Segments covered']])
+              : t.input.stats).map(([n,l], i) => {
               const colors = ['#1FB5DB', '#34C95A', '#A861E6'];
               return (
                 <div key={l} style={{

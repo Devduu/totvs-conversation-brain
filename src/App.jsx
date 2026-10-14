@@ -5,6 +5,7 @@ import { BrainScreen } from './pages/BrainScreen';
 import { DashScreen } from './pages/DashScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { InputScreen } from './pages/InputScreen';
+import { LoginScreen } from './pages/LoginScreen';
 import { ResultScreen } from './pages/ResultScreen';
 import { StatsScreen } from './pages/StatsScreen';
 // Raiz da aplicacao: decide qual tela aparece e guarda o estado que sobrevive
@@ -43,10 +44,27 @@ function App() {
     return IDIOMAS.includes(l) ? l : 'pt';
   });
   const [tweaks] = useState({ cardstyle:'filled', density:'normal', confidence:'high' });
+  // Funcionario TOTVS logado (login de demonstracao), guardado no navegador
+  const [usuario, setUsuario] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('tcb_usuario') || 'null');
+      return u && typeof u.email === 'string' && typeof u.nome === 'string' ? u : null;
+    } catch { return null; }
+  });
+  useEffect(() => { writeStore('tcb_usuario', usuario ? JSON.stringify(usuario) : null); }, [usuario]);
+  // Vendedor e CS nao veem o painel executivo: se a tela guardada era o
+  // Dashboard, abre na Nova Analise
+  const podeVerPainel = Boolean(usuario && usuario.podeVerPainelExecutivo);
+  useEffect(() => { if (usuario && !podeVerPainel && screen === 'dash') setScreen('input'); }, [usuario, podeVerPainel, screen]);
+  const entrarComo = (u) => { setUsuario(u); setScreen(u.podeVerPainelExecutivo ? 'dash' : 'input'); };
 
   useEffect(() => { writeStore('tcb_screen', screen); }, [screen]);
   useEffect(() => { writeStore('tcb_lang', lang); }, [lang]);
-  useEffect(() => { writeStore('tcb_result', result ? JSON.stringify(result) : null); }, [result]);
+  // A transcricao nao fica guardada no navegador: a tela de resultado busca a
+  // versao atual na API ao abrir, entao basta guardar o resto.
+  useEffect(() => {
+    writeStore('tcb_result', result ? JSON.stringify({ ...result, transcricao: undefined }) : null);
+  }, [result]);
   useEffect(() => { document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en'; }, [lang]);
 
   const handleAnalyze = (r, conf='high') => { setResult({ ...r, _confidence: conf }); setScreen('result'); };
@@ -57,13 +75,16 @@ function App() {
                 <div style={{ height:'100%', display:'flex', flexDirection:'column', background:'#050B14', color:'#F5F7FA', position:'relative' }}>
           <div className="app-bg"/>
           <div style={{ position:'relative', zIndex:1, height:'100%', display:'flex', flexDirection:'column', minHeight:0 }}>
-            <TopNav screen={screen} setScreen={setScreen} hasResult={!!result} lang={lang} setLang={setLang}/>
-            {screen==='dash'      && <DashScreen lang={lang} setScreen={setScreen} setResult={setResult}/>}
-            {screen==='input'  && <InputScreen  onAnalyze={handleAnalyze} lang={lang}/>}
-            {screen==='result' && <ResultScreen result={result} lang={lang} setScreen={setScreen}/>}
+            {/* Sem login, so a tela de login aparece */}
+            {!usuario ? <LoginScreen lang={lang} setLang={setLang} onEntrar={entrarComo}/> : <>
+            <TopNav screen={screen} setScreen={setScreen} hasResult={!!result} lang={lang} setLang={setLang} usuario={usuario} setUsuario={setUsuario}/>
+            {screen==='dash' && podeVerPainel && <DashScreen lang={lang} setScreen={setScreen} setResult={setResult}/>}
+            {screen==='input'  && <InputScreen  onAnalyze={handleAnalyze} lang={lang} usuario={usuario}/>}
+            {screen==='result' && <ResultScreen result={result} lang={lang} setScreen={setScreen} setResult={setResult}/>}
             {screen==='brain'  && <BrainScreen  lang={lang}/>}
             {screen==='stats'  && <StatsScreen lang={lang} setScreen={setScreen}/>}
             {screen==='historico' && <HistoryScreen lang={lang} setScreen={setScreen} setResult={setResult}/>}
+            </>}
           </div>
         </div>
       </TweakCtx.Provider>

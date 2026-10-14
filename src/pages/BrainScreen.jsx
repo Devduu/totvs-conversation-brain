@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SLabel } from '../components/ui/SLabel';
 import { useT } from '../context/AppContext';
-import { getCerebro } from '../services/api';
+import { getCerebro, getCarregadoEm } from '../services/api';
 import { lighten } from '../lib/colors';
 import { useTamanho } from '../hooks/useTamanho';
 // Tela do Cerebro Comercial: a rede de conhecimento acumulada.
 // Grafo desenhado em canvas com simulacao de forcas, pan, zoom e busca de no.
-// Lido no escopo do modulo de proposito: getCerebro() hoje e sincrono e
-// devolve sempre as mesmas listas, e essa estabilidade e o que permite que os
-// hooks de canvas abaixo nao precisem re-rodar a cada render.
-// SPRINT 4: quando getCerebro() virar chamada HTTP, isto passa para dentro do
-// componente com useState/useEffect e um estado de carregando.
-const { BRAIN_NODES, BRAIN_EDGES, NODE_META, PATTERNS } = getCerebro();
-
 function BrainScreen({ lang }) {
   const t = useT();
+  // Os dados ja foram carregados da API antes do App montar (main.jsx), entao
+  // getCerebro() responde na hora. O useMemo garante as mesmas listas em todo
+  // render: os hooks de canvas abaixo dependem dessa estabilidade.
+  const { BRAIN_NODES, BRAIN_EDGES, NODE_META, PATTERNS, DORES, RIVAIS, CHURN, TOTAL } = React.useMemo(() => getCerebro(lang), [lang]);
   const canvasRef = useRef(null);
   // Hover do mini-grafico de churn no painel lateral
   const [churnHover, setChurnHover] = useState(null);
@@ -100,6 +97,7 @@ function BrainScreen({ lang }) {
       vx: 0, vy: 0,
       ox: n.x * (W/800), oy: n.y * (H/430), // anchor (original)
     }));
+    if (muitosNos) acomodarGrafo(simNodes.current, W, H);
   }, []);
 
   const draw = useCallback(() => {
@@ -225,6 +223,100 @@ function BrainScreen({ lang }) {
     });
   }, [neighbors]);
 
+  // Com a base real o grafo tem dezenas de nos ligados a quase tudo. A
+  // simulacao ao vivo nao dava conta de abrir esse emaranhado: as molas
+  // juntavam todo mundo no meio. Nesse caso o layout e calculado antes de
+  // desenhar (acomodarGrafo) e, depois, cada no so flutua em volta do lugar
+  // dele, sem mola.
+  const muitosNos = BRAIN_NODES.length > 25;
+  const forcaMola = muitosNos ? 0 : 0.012;
+  const forcaAncora = muitosNos ? 0.02 : 0.003;
+  const AMPLITUDE_FLUTUACAO = 7;
+  // Meia largura e meia altura do no com o rotulo, e o deslocamento do centro
+  // dessa caixa em relacao ao centro do circulo.
+  const caixaDoNo = (n) => {
+    const r = NODE_META[n.type].r;
+    const texto = (n.label || '').length * 5.6;
+    return { mw: Math.max(r, texto / 2), mh: (r * 2 + 16) / 2, dy: 8 };
+  };
+
+  // Layout de forcas (Fruchterman-Reingold): todo no repele todo no, cada
+  // aresta puxa as duas pontas e uma gravidade leve segura o conjunto no
+  // centro. Roda alguns centenas de passos com a "temperatura" caindo, ate o
+  // desenho parar, e so entao a tela aparece.
+  function acomodarGrafo(nos, W, H) {
+    const N = nos.length;
+    const k = Math.sqrt((W * H) / N) * 0.8;
+    const cx = W / 2, cy = H / 2 + 10;
+    const porId = {};
+    nos.forEach(n => { porId[n.id] = n; });
+    // Areas ocupadas pelo titulo, pela legenda e pelos botoes de zoom
+    const obstaculos = [
+      { x0: 0, y0: 0, x1: 260, y1: 46 },
+      { x0: 0, y0: H - 200, x1: 245, y1: H },
+      { x0: W - 80, y0: H - 190, x1: W, y1: H },
+    ];
+    const PASSOS = 450;
+    for (let passo = 0; passo < PASSOS; passo++) {
+      const temperatura = (W / 12) * (1 - passo / PASSOS) + 0.5;
+      nos.forEach(n => { n.dx = 0; n.dy = 0; });
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          const a = nos[i], b = nos[j];
+          let dx = a.x - b.x, dy = a.y - b.y;
+          let d = Math.hypot(dx, dy);
+          if (d < 0.01) { dx = (i - j) * 0.1; dy = 0.1; d = Math.hypot(dx, dy); }
+          const f = (k * k) / d;
+          a.dx += dx / d * f; a.dy += dy / d * f;
+          b.dx -= dx / d * f; b.dy -= dy / d * f;
+          // rotulos que se cruzam se afastam com forca extra
+          const ca = caixaDoNo(a), cb = caixaDoNo(b);
+          const sobraX = ca.mw + cb.mw + 10 - Math.abs(dx);
+          const sobraY = ca.mh + cb.mh + 6 - Math.abs(dy);
+          if (sobraX > 0 && sobraY > 0) {
+            if (sobraX < sobraY) { const g = sobraX * (dx < 0 ? -1 : 1); a.dx += g; b.dx -= g; }
+            else { const g = sobraY * (dy < 0 ? -1 : 1); a.dy += g; b.dy -= g; }
+          }
+        }
+      }
+      BRAIN_EDGES.forEach(([id1, id2]) => {
+        const a = porId[id1], b = porId[id2];
+        if (!a || !b) return;
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const f = (d * d) / k;
+        a.dx -= dx / d * f; a.dy -= dy / d * f;
+        b.dx += dx / d * f; b.dy += dy / d * f;
+      });
+      nos.forEach(n => {
+        n.dx += (cx - n.x) * 0.5;
+        n.dy += (cy - n.y) * 0.7;
+        const d = Math.hypot(n.dx, n.dy) || 0.01;
+        const passoMax = Math.min(d, temperatura);
+        n.x += n.dx / d * passoMax;
+        n.y += n.dy / d * passoMax;
+        const meia = caixaDoNo(n).mw;
+        n.x = Math.max(meia + 8, Math.min(W - meia - 8, n.x));
+        n.y = Math.max(30, Math.min(H - 34, n.y));
+        // o rotulo tambem nao pode entrar nessas areas, por isso a margem
+        // lateral e a meia largura do texto
+        const mx = meia + 12, my = 24;
+        obstaculos.forEach(o => {
+          if (n.x > o.x0 - mx && n.x < o.x1 + mx && n.y > o.y0 - my && n.y < o.y1 + my) {
+            const sair = [n.x - (o.x0 - mx), (o.x1 + mx) - n.x, n.y - (o.y0 - my), (o.y1 + my) - n.y];
+            const menor = Math.min(...sair);
+            if (menor === sair[0]) n.x = o.x0 - mx; else if (menor === sair[1]) n.x = o.x1 + mx;
+            else if (menor === sair[2]) n.y = o.y0 - my; else n.y = o.y1 + my;
+          }
+        });
+      });
+    }
+    nos.forEach((n, i) => {
+      n.vx = 0; n.vy = 0; n.ox = n.x; n.oy = n.y;
+      n.fase = i * 2.399; // angulo de ouro: cada no flutua num ritmo diferente
+    });
+  }
+
   // Physics step
   const reducedMotion = typeof window !== 'undefined'
     && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -257,16 +349,44 @@ function BrainScreen({ lang }) {
         const dx = b.x - a.x, dy = b.y - a.y;
         const d = Math.hypot(dx,dy) || 0.01;
         const targetLen = 110;
-        const k = 0.012;
+        const k = forcaMola;
         const f = (d - targetLen) * k;
         const fx = (dx/d) * f, fy = (dy/d) * f;
         a.vx += fx; a.vy += fy;
         b.vx -= fx; b.vy -= fy;
       });
-      // Gentle pull to anchor (keeps layout roughly stable)
+      // Rotulos nao se sobrepoem: cada no ocupa a caixa do circulo mais o
+      // texto embaixo, e duas caixas que se cruzam se empurram pelo lado
+      // em que a sobreposicao e menor.
+      for (let i=0; i<N; i++) {
+        for (let j=i+1; j<N; j++) {
+          const a = nodes[i], b = nodes[j];
+          const ca = caixaDoNo(a), cb = caixaDoNo(b);
+          const dx = b.x - a.x, dy = (b.y + cb.dy) - (a.y + ca.dy);
+          const sobraX = ca.mw + cb.mw + 6 - Math.abs(dx);
+          const sobraY = ca.mh + cb.mh + 4 - Math.abs(dy);
+          if (sobraX <= 0 || sobraY <= 0) continue;
+          if (sobraX < sobraY) {
+            const f = sobraX * 0.08 * (dx < 0 ? -1 : 1);
+            a.vx -= f; b.vx += f;
+          } else {
+            const f = sobraY * 0.08 * (dy < 0 ? -1 : 1);
+            a.vy -= f; b.vy += f;
+          }
+        }
+      }
+      // Puxa cada no de volta para a posicao dele. Com o layout calculado, o
+      // alvo da uma volta lenta em torno da posicao: o grafo fica vivo sem
+      // desmanchar.
+      const t = performance.now() / 1000;
       nodes.forEach(n => {
-        n.vx += (n.ox - n.x) * 0.003;
-        n.vy += (n.oy - n.y) * 0.003;
+        let alvoX = n.ox, alvoY = n.oy;
+        if (muitosNos) {
+          alvoX += Math.sin(t * 0.45 + n.fase) * AMPLITUDE_FLUTUACAO;
+          alvoY += Math.cos(t * 0.38 + n.fase * 1.3) * AMPLITUDE_FLUTUACAO;
+        }
+        n.vx += (alvoX - n.x) * forcaAncora;
+        n.vy += (alvoY - n.y) * forcaAncora;
       });
       // Aplica as velocidades e o amortecimento
       const drag = draggedRef.current;
@@ -408,19 +528,24 @@ function BrainScreen({ lang }) {
 
   // Sobrescreve as cores para os cartoes nao ficarem todos iguais
   const _PATTERNS = PATTERNS.map((p,i)=>({ ...p, color: ['#CDED6A','#F2912A','#E63D92'][i] }));
-  const dores = [
+  // Com a API: dores mais citadas, mencoes por concorrente e risco medio por
+  // dia, as mesmas consultas do Dashboard e das Estatisticas.
+  const dores = DORES || [
     { label: lang==='pt'?'RH':'HR', v:12 },
     { label: lang==='pt'?'Financeiro':'Finance', v:9 },
     { label: lang==='pt'?'Relatórios':'Reports', v:8 },
     { label: lang==='pt'?'Integração':'Integration', v:5 },
   ];
-  const maxD = 12;
-  const churnMo = lang==='pt'
+  const maxD = Math.max(1, ...dores.map(d => d.v));
+  const churnMo = CHURN ? CHURN.rotulos : (lang==='pt'
     ? ['Out','Nov','Dez','Jan','Fev','Mar','Abr']
-    : ['Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
-  // Mesmas mencoes do mapa de calor do Dashboard e do mapa dor x concorrente
-  // das Estatisticas. Antes cada tela mostrava um total diferente para o SAP.
-  const rivals = [{n:'SAP',v:28},{n:'Oracle',v:26},{n:'Senior',v:16},{n:lang==='pt'?'Outros':'Others',v:12}];
+    : ['Oct','Nov','Dec','Jan','Feb','Mar','Apr']);
+  const churnData = CHURN ? CHURN.valores : [58,62,64,67,69,71,73];
+  // Reunioes de cada mes; abaixo de 5 o ponto fica vazado, como no Dashboard
+  const churnQtd = CHURN ? CHURN.quantidades : null;
+  const POUCAS_REUNIOES = 5;
+  const carregadoEm = getCarregadoEm();
+  const rivals = RIVAIS || [{n:'SAP',v:28},{n:'Oracle',v:26},{n:'Senior',v:16},{n:lang==='pt'?'Outros':'Others',v:12}];
   // A barra do maior valor tem que encher a trilha. Antes o divisor era 34 fixo,
   // sobra de quando o SAP valia 34, e por isso nenhuma barra chegava ao fim.
   const maxRival = Math.max(1, ...rivals.map(c => c.v));
@@ -431,7 +556,9 @@ function BrainScreen({ lang }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0, flexWrap:'wrap', gap:10 }}>
         <div>
           <h2 className="r-h2" style={{ fontSize:26, fontWeight:800, letterSpacing:'-0.03em' }}>{t.brain.title}</h2>
-          <div style={{ fontSize:12, color:'var(--text-sub)', marginTop:3 }}>{t.brain.sub}</div>
+          <div style={{ fontSize:12, color:'var(--text-sub)', marginTop:3 }}>{TOTAL
+            ? (lang==='pt' ? `${TOTAL.reunioes} reuniões · ${TOTAL.segmentos} segmentos · dados acumulados` : `${TOTAL.reunioes} meetings · ${TOTAL.segmentos} segments · accumulated data`)
+            : t.brain.sub}</div>
         </div>
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {Object.entries(NODE_META).map(([type, meta]) => {
@@ -497,12 +624,13 @@ function BrainScreen({ lang }) {
               }}>{filter.size>0 ? (lang==='pt'?'Mostrar tudo':'Show all') : (lang==='pt'?'Filtrar':'Filter')}</button>
             </div>
             {[
-              ['#1FB5DB', lang==='pt'?'Cliente':'Client', 8, 'cliente'],
-              ['#E63D92', lang==='pt'?'Dor':'Pain', 7, 'dor'],
-              ['#CDED6A', lang==='pt'?'Produto TOTVS':'TOTVS Product', 4, 'produto'],
-              ['#F2912A', lang==='pt'?'Concorrente':'Competitor', 3, 'concorrente'],
-              ['#A861E6', lang==='pt'?'Oportunidade':'Opportunity', 4, 'oportunidade'],
-            ].map(([c,l,n,type]) => {
+              ['#1FB5DB', lang==='pt'?'Cliente':'Client', 'cliente'],
+              ['#E63D92', lang==='pt'?'Dor':'Pain', 'dor'],
+              ['#CDED6A', lang==='pt'?'Produto TOTVS':'TOTVS Product', 'produto'],
+              ['#F2912A', lang==='pt'?'Concorrente':'Competitor', 'concorrente'],
+              ['#A861E6', lang==='pt'?'Oportunidade':'Opportunity', 'oportunidade'],
+            ].map(([c,l,type]) => {
+              const n = BRAIN_NODES.filter(nd => nd.type === type).length;
               const active = filter.has(type);
               return (
                 <div key={l} className="legend-item"
@@ -571,11 +699,11 @@ function BrainScreen({ lang }) {
               </span>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {[
+              {(DORES ? _PATTERNS.map(p => [p.color, p[lang]]) : [
                 ['#E63D92', lang==='pt'?'2 clientes em Manufatura conectados à mesma dor (Lentidão RH) — padrão de mercado':'2 Manufacturing clients linked to same pain (HR slowness) — market pattern'],
                 ['#F2912A', lang==='pt'?'SAP conecta-se a 8 clientes diferentes — vetor de ataque crítico':'SAP connects to 8 different clients — critical attack vector'],
                 ['#A861E6', lang==='pt'?'Cross-sell Financeiro tem rota livre em 12 clientes ainda não trabalhados':'Cross-sell Finance has clear path to 12 untouched clients'],
-              ].map(([c,txt],i)=>(
+              ]).map(([c,txt],i)=>(
                 <div key={i} style={{ display:'flex', gap:9, alignItems:'flex-start' }}>
                   <span style={{ width:5, height:5, borderRadius:'50%', background:c, marginTop:7, flexShrink:0 }}/>
                   <span style={{ fontSize:12, color:'var(--text-sub)', lineHeight:1.42 }}>{txt}</span>
@@ -583,7 +711,7 @@ function BrainScreen({ lang }) {
               ))}
             </div>
             <div style={{ marginTop:7, paddingTop:6, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
-              <button title={lang==='pt'?'Integração prevista para a Sprint 4':'Integration planned for Sprint 4'} className="brain-insight-link" style={{ background:'transparent', border:'none', cursor:'default',
+              <button title={lang==='pt'?'Etapa futura: a geração de insights depende do motor de IA, que ainda não está implementado':'Future step: insight generation depends on the AI engine, not implemented yet'} className="brain-insight-link" style={{ background:'transparent', border:'none', cursor:'default',
                 color:'#1FB5DB', fontSize:11, fontWeight:600, fontFamily:'Inter', padding:'2px 0',
                 display:'inline-flex', alignItems:'center', gap:5,
                 transition:'color 160ms ease-out, transform 160ms ease-out, filter 160ms ease-out, text-shadow 160ms ease-out' }}>
@@ -631,18 +759,21 @@ function BrainScreen({ lang }) {
                 </linearGradient>
               </defs>
               {(() => {
-                const data = [58,62,64,67,69,71,73];
+                const data = churnData;
                 const L = 26, R = 10, T = 10, B = 20, W = largChurn, H = altChurn;
-                const yMin = 50, yMax = 80;
-                const px = i => L + (i/(data.length-1)) * (W - L - R);
+                // Faixa do eixo: fixa em demo (50 a 80); com dados reais vai de 0 a 100,
+                // porque o risco medio por mes varia bastante.
+                const yMin = CHURN ? 0 : 50, yMax = CHURN ? 100 : 80;
+                const ticks = CHURN ? [0,25,50,75,100] : [50,60,70,80];
+                const px = i => L + (i/Math.max(1, data.length-1)) * (W - L - R);
                 const py = v => T + (1 - (v - yMin)/(yMax - yMin)) * (H - T - B);
                 const base = py(yMin);
                 return <>
-                  {[50,60,70,80].map(v=>(
+                  {ticks.map(v=>(
                     <line key={v} x1={L} y1={py(v)} x2={W-R} y2={py(v)}
                       stroke="var(--border)" strokeWidth={0.5}/>
                   ))}
-                  {[50,60,70,80].map(v=>(
+                  {ticks.map(v=>(
                     <text key={v} x={L-5} y={py(v)+3.5} textAnchor="end"
                       fill="var(--text-dim)" fontSize={10} fontFamily="DM Mono">{v}</text>
                   ))}
@@ -653,15 +784,16 @@ function BrainScreen({ lang }) {
                     <line x1={px(churnHover.idx)} y1={T} x2={px(churnHover.idx)} y2={base}
                       stroke="rgba(255,255,255,0.20)" strokeWidth={0.8} strokeDasharray="2 2"/>
                   )}
-                  {data.map((v,i)=>(
-                    <circle key={i} cx={px(i)} cy={py(v)}
-                      r={churnHover && churnHover.idx===i ? 4.5 : 3}
-                      fill="var(--accent)" stroke="var(--surface)" strokeWidth={1.4}
-                      style={{ transition:'r 150ms ease-out' }}/>
-                  ))}
+                  {data.map((v,i)=>{
+                    const poucas = churnQtd && churnQtd[i] < POUCAS_REUNIOES;
+                    return <circle key={i} cx={px(i)} cy={py(v)}
+                      r={churnHover && churnHover.idx===i ? 4.5 : (poucas ? 3.4 : 3)}
+                      fill={poucas ? 'var(--surface)' : 'var(--accent)'} stroke={poucas ? 'var(--accent)' : 'var(--surface)'} strokeWidth={poucas ? 1.6 : 1.4}
+                      style={{ transition:'r 150ms ease-out' }}/>;
+                  })}
                   {/* Primeiro e ultimo mes ancoram para dentro para nao encostarem
                       no rotulo do eixo Y nem sairem da area */}
-                  {churnMo.map((l,i)=>(
+                  {churnMo.map((l,i)=> (churnMo.length > 6 && i % 2 === 1) ? null : (
                     <text key={i} x={px(i)} y={H-5}
                       textAnchor={i===0 ? 'start' : i===churnMo.length-1 ? 'end' : 'middle'}
                       fill="var(--text-dim)" fontSize={10} fontFamily="Inter">{l}</text>
@@ -680,7 +812,7 @@ function BrainScreen({ lang }) {
             </svg>
             </div>
             {churnHover && (() => {
-              const data = [58,62,64,67,69,71,73];
+              const data = churnData;
               const v = Math.round(data[churnHover.idx]);
               const m = churnMo[churnHover.idx];
               return (
@@ -692,6 +824,7 @@ function BrainScreen({ lang }) {
                   whiteSpace:'nowrap', boxShadow:'0 6px 18px rgba(0,0,0,0.45)'
                 }}>
                   <b style={{ color:'#1FB5DB' }}>{m}</b> · <b>{v}%</b> {lang==='pt'?'churn médio':'avg churn'}
+                  {churnQtd && <span style={{ color:'var(--text-dim)' }}> · {churnQtd[churnHover.idx]} {lang==='pt'?(churnQtd[churnHover.idx]===1?'reunião':'reuniões'):'meetings'}</span>}
                 </div>
               );
             })()}
@@ -705,7 +838,7 @@ function BrainScreen({ lang }) {
                 style={{ display:'flex', alignItems:'center', gap:10, marginBottom:3, cursor:'default',
                   padding:'1px 6px', marginLeft:-6, marginRight:-6, borderRadius:6,
                   transition:'background-color 150ms ease-out, transform 150ms ease-out' }}>
-                <span className="brain-rival-name" style={{ fontSize:12, color:'var(--text-sub)', width:72, flexShrink:0, transition:'color 150ms ease-out' }}>{c.n}</span>
+                <span className="brain-rival-name" style={{ fontSize:12, color:'var(--text-sub)', width:104, flexShrink:0, whiteSpace:'nowrap', transition:'color 150ms ease-out' }}>{c.n}</span>
                 <div style={{ flex:1, height:6, background:'var(--border)', borderRadius:6, overflow:'visible' }}>
                   <div className="brain-panel-bar brain-rival-bar" style={{ height:'100%', borderRadius:6, width:`${(c.v/maxRival)*100}%`,
                     background:'var(--amber)', transformOrigin:'center', transition:'width 0.8s, filter 150ms ease-out, transform 150ms ease-out' }}/>
@@ -777,8 +910,15 @@ function BrainScreen({ lang }) {
         </div>
         <div className="r-brainsync" style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, color:'var(--text-dim)', whiteSpace:'nowrap' }}>
           <span style={{ width:6, height:6, borderRadius:'50%', background:'#34C95A' }}/>
-          <span>{lang==='pt'?'Última sincronização: agora':'Last sync: now'}</span>
-          <span title={lang==='pt'?'Atualização automática: a sincronização com o Cérebro é contínua':'Auto-refresh: sync with the Brain is continuous'} style={{ marginLeft:6, color:'var(--text-sub)' }}>↻</span>
+          {/* Com a API: a hora real em que os dados foram buscados, e o botao
+              recarrega a pagina, que busca tudo de novo no Oracle. */}
+          <span>{carregadoEm
+            ? `${lang==='pt'?'Dados carregados às':'Data loaded at'} ${carregadoEm.toLocaleTimeString(lang==='pt'?'pt-BR':'en-US', { hour:'2-digit', minute:'2-digit' })}`
+            : (lang==='pt'?'Última sincronização: agora':'Last sync: now')}</span>
+          {carregadoEm
+            ? <button onClick={()=>window.location.reload()} title={lang==='pt'?'Buscar os dados de novo na API':'Fetch the data again from the API'}
+                style={{ marginLeft:6, background:'transparent', border:'none', color:'var(--text-sub)', cursor:'pointer', fontSize:12, padding:0 }}>↻</button>
+            : <span title={lang==='pt'?'Atualização automática: a sincronização com o Cérebro é contínua':'Auto-refresh: sync with the Brain is continuous'} style={{ marginLeft:6, color:'var(--text-sub)' }}>↻</span>}
         </div>
       </div>
     </div>

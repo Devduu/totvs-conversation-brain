@@ -1,6 +1,9 @@
 // Faixa no topo da tela de Resultados. Confianca alta confirma o salvamento
 // automatico; confianca baixa pede revisao e oferece descartar.
-function ConfidenceBanner({ level, lang, pct, onRevisar, onDiscard, onVerCerebro }) {
+// Com a API, onAprovar troca o botao "Revisar" por "Aprovar" (a revisao humana
+// grava no Java) e aprovadaNaRevisao muda o texto da faixa verde de uma reuniao
+// de confianca baixa que ja foi aprovada por alguem.
+function ConfidenceBanner({ level, lang, pct, onRevisar, onDiscard, onVerCerebro, onAprovar=null, aprovadaNaRevisao=false, enviando=false }) {
   const high = level === 'high';
   const bg = high ? 'rgba(52,201,90,0.10)' : 'rgba(242,182,54,0.12)';
   const bd = high ? 'rgba(52,201,90,0.35)' : 'rgba(242,182,54,0.42)';
@@ -22,13 +25,17 @@ function ConfidenceBanner({ level, lang, pct, onRevisar, onDiscard, onVerCerebro
           color: fg, fontSize:12, fontWeight:700,
         }}>{high ? '✓' : '!'}</div>
         <span style={{ fontSize:13, color:'var(--text)', fontWeight:500, letterSpacing:'-0.005em' }}>
-          {high
+          {high && aprovadaNaRevisao
             ? (lang==='pt'
-                ? <>Análise validada com <b style={{color:fg}}>{pctExibido}% de confiança</b> — Salva automaticamente no Cérebro Comercial</>
-                : <>Analysis validated with <b style={{color:fg}}>{pctExibido}% confidence</b> — Auto-saved to Commercial Brain</>)
+                ? <>Aprovada na <b style={{color:fg}}>revisão humana</b> ({pctExibido}% de confiança) · vinculada ao Cérebro Comercial</>
+                : <>Approved in <b style={{color:fg}}>human review</b> ({pctExibido}% confidence) · linked to the Commercial Brain</>)
+            : high
+            ? (lang==='pt'
+                ? <>Análise validada com <b style={{color:fg}}>{pctExibido}% de confiança</b> · salva automaticamente no Cérebro Comercial</>
+                : <>Analysis validated with <b style={{color:fg}}>{pctExibido}% confidence</b> · auto-saved to Commercial Brain</>)
             : (lang==='pt'
-                ? <><b style={{color:fg}}>Confiança baixa</b> — revise os dados antes de salvar no Cérebro</>
-                : <><b style={{color:fg}}>Low confidence</b> — review the data before saving to the Brain</>)
+                ? <><b style={{color:fg}}>Confiança baixa ({pctExibido}%)</b> · revise os dados antes de salvar no Cérebro</>
+                : <><b style={{color:fg}}>Low confidence</b> · review the data before saving to the Brain</>)
           }
         </span>
       </div>
@@ -40,12 +47,20 @@ function ConfidenceBanner({ level, lang, pct, onRevisar, onDiscard, onVerCerebro
         }}>{lang==='pt'?'Ver no Cérebro':'View in Brain'} →</button>
       ) : (
         <div style={{ display:'flex', gap:6 }}>
-          <button onClick={onRevisar} style={{
-            padding:'6px 12px', background:'rgba(255,255,255,0.04)',
-            border:'1px solid rgba(255,255,255,0.10)', borderRadius:6,
-            color:'var(--text-sub)', fontSize:11, fontWeight:600, cursor:'pointer'
-          }}>{lang==='pt'?'Revisar':'Review'}</button>
-          <button onClick={onDiscard} style={{
+          {onAprovar ? (
+            <button onClick={onAprovar} disabled={enviando} style={{
+              padding:'6px 12px', background:'rgba(52,201,90,0.10)',
+              border:'1px solid rgba(52,201,90,0.40)', borderRadius:6,
+              color:'#34C95A', fontSize:11, fontWeight:600, cursor: enviando?'default':'pointer'
+            }}>{lang==='pt'?'Aprovar':'Approve'}</button>
+          ) : (
+            <button onClick={onRevisar} style={{
+              padding:'6px 12px', background:'rgba(255,255,255,0.04)',
+              border:'1px solid rgba(255,255,255,0.10)', borderRadius:6,
+              color:'var(--text-sub)', fontSize:11, fontWeight:600, cursor:'pointer'
+            }}>{lang==='pt'?'Revisar':'Review'}</button>
+          )}
+          <button onClick={onDiscard} disabled={enviando} style={{
             padding:'6px 12px', background:'transparent',
             border:'1px solid rgba(240,76,102,0.35)', borderRadius:6,
             color:'#F04C66', fontSize:11, fontWeight:600, cursor:'pointer'
