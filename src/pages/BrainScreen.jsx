@@ -303,10 +303,13 @@ function BrainScreen({ lang }) {
         const mx = meia + 12, my = 24;
         obstaculos.forEach(o => {
           if (n.x > o.x0 - mx && n.x < o.x1 + mx && n.y > o.y0 - my && n.y < o.y1 + my) {
-            const sair = [n.x - (o.x0 - mx), (o.x1 + mx) - n.x, n.y - (o.y0 - my), (o.y1 + my) - n.y];
-            const menor = Math.min(...sair);
-            if (menor === sair[0]) n.x = o.x0 - mx; else if (menor === sair[1]) n.x = o.x1 + mx;
-            else if (menor === sair[2]) n.y = o.y0 - my; else n.y = o.y1 + my;
+            // sai pelo lado mais perto que ainda fica dentro do grafo
+            const destino = [o.x0 - mx, o.x1 + mx, o.y0 - my, o.y1 + my];
+            const dentro = [destino[0] >= meia + 8, destino[1] <= W - meia - 8, destino[2] >= 30, destino[3] <= H - 34];
+            const sair = [n.x - destino[0], destino[1] - n.x, n.y - destino[2], destino[3] - n.y]
+              .map((d, i) => (dentro[i] ? d : Infinity));
+            const lado = sair.indexOf(Math.min(...sair));
+            if (lado < 2) n.x = destino[lado]; else n.y = destino[lado];
           }
         });
       });
@@ -417,6 +420,23 @@ function BrainScreen({ lang }) {
     rafRef.current = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(rafRef.current); };
   }, [initSim, step]);
+
+  // Quando o quadro do grafo muda de tamanho (janela ou zoom), refaz o layout
+  // depois que o tamanho para de mudar, como o botao Reorganizar
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let espera;
+    const observador = new ResizeObserver(() => {
+      clearTimeout(espera);
+      espera = setTimeout(() => {
+        viewRef.current = { k: 1, tx: 0, ty: 0 };
+        initSim();
+      }, 250);
+    });
+    observador.observe(canvas);
+    return () => { observador.disconnect(); clearTimeout(espera); };
+  }, [initSim]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
