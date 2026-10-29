@@ -11,6 +11,10 @@ Interface web da solução do Grupo InovaLink para o Challenge FIAP × TOTVS 202
 ![Sem dependência de rede](https://img.shields.io/badge/depend%C3%AAncias%20externas-zero-34C95A?style=flat-square)
 ![PT / EN](https://img.shields.io/badge/idiomas-PT%20%2F%20EN-F2912A?style=flat-square)
 
+**Site no ar:** [totvs-conversation-brain.vercel.app](https://totvs-conversation-brain.vercel.app)
+
+A versão publicada usa os dados de exemplo, porque a API Java, que lê o banco Oracle, roda só localmente. É só clicar em Entrar: o acesso de demonstração já vem preenchido.
+
 </div>
 
 ---
@@ -197,7 +201,7 @@ A atualização continua planejada; ela exige subir uma versão maior da ferrame
 
 ### Próximo passo de segurança
 
-Um teste dinâmico (DAST) só faz sentido depois do deploy, porque precisa de uma URL para varrer. Assim que o site estiver publicado, essa varredura entra, junto com a auditoria da API Java, que é onde a superfície de ataque de verdade vai aparecer: autenticação, autorização, injeção de SQL e exposição de dados de cliente.
+Com o site publicado, o próximo passo é um teste dinâmico (DAST) na URL dele, junto com a auditoria da API Java, que é onde a superfície de ataque de verdade vai aparecer: autenticação, autorização, injeção de SQL e exposição de dados de cliente.
 
 ## Decisões técnicas
 
