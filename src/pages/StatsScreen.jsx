@@ -6,6 +6,7 @@ import { useInViewOnce } from '../hooks/useInViewOnce';
 import { useTamanho } from '../hooks/useTamanho';
 import { getEstatisticas, getCarregadoEm } from '../services/api';
 import { convexHull, expandHull, smoothHullPath } from '../lib/geometry';
+import { virarBalao } from '../lib/balao';
 // Tela de Estatisticas: os paineis do modulo de Data Science.
 // Frequencia de dores, evolucao de concorrentes, distribuicao de scores,
 // cruzamento dor x concorrente, termos por TF-IDF e clusters de embeddings.
@@ -250,7 +251,7 @@ function StatsScreen({ lang, setScreen }) {
             const d = dores[doreHover.idx]; if (!d) return null;
             const pct = Math.round((d.v / 574) * 100);
             return (
-              <div style={{
+              <div ref={el => virarBalao(el)} style={{
                 position:'absolute', left: Math.round(doreHover.mx) + 12, top: Math.round(doreHover.my) + 12,
                 pointerEvents:'none', zIndex:5,
                 background:'rgba(5,11,20,0.96)', border:'1px solid rgba(230,61,146,0.40)',
@@ -381,7 +382,7 @@ function StatsScreen({ lang, setScreen }) {
             const i = concHoverMonth;
             const m = concEvol.months[i];
             return (
-              <div style={{
+              <div ref={el => virarBalao(el)} style={{
                 position:'absolute', left: Math.round(concPos.mx) + 14, top: Math.round(concPos.my) + 14,
                 pointerEvents:'none', zIndex:5,
                 background:'rgba(5,11,20,0.96)', border:'1px solid rgba(255,255,255,0.18)',
@@ -505,7 +506,7 @@ function StatsScreen({ lang, setScreen }) {
               const val = Math.round(2800 * d.p / 100);
               const detalhe = real ? `${d.q} ${isPt?(d.q===1?'reunião':'reuniões'):'meetings'}` : `R$ ${val}k`;
               return (
-                <div style={{
+                <div ref={el => virarBalao(el)} style={{
                   position:'absolute', left: Math.round(donutHover.mx) + 12, top: Math.round(donutHover.my) + 12,
                   pointerEvents:'none', zIndex:5,
                   background:'rgba(5,11,20,0.96)', border:`1px solid ${d.c}66`,
@@ -578,7 +579,7 @@ function StatsScreen({ lang, setScreen }) {
               const i = histHover.idx; const v = hist[i]; if (v == null) return null;
               const color = i < 4 ? '#F04C66' : i < 7 ? '#F2912A' : '#34C95A';
               return (
-                <div style={{
+                <div ref={el => virarBalao(el)} style={{
                   position:'absolute', left: Math.round(histHover.mx) + 12, top: Math.round(histHover.my) + 12,
                   pointerEvents:'none', zIndex:5,
                   background:'rgba(5,11,20,0.96)', border:`1px solid ${color}66`,
@@ -667,7 +668,7 @@ function StatsScreen({ lang, setScreen }) {
           {heatHover && (() => {
             const v = heat[heatHover.ri][heatHover.ci];
             return (
-              <div style={{
+              <div ref={el => virarBalao(el)} style={{
                 position:'absolute', left: Math.round(heatHover.mx) + 12, top: Math.round(heatHover.my) + 12,
                 pointerEvents:'none', zIndex:5,
                 background:'rgba(5,11,20,0.96)', border:'1px solid rgba(255,255,255,0.18)',
@@ -761,7 +762,7 @@ function StatsScreen({ lang, setScreen }) {
                   })}
                 </div>
                 {wordHover && wordHover.item && (
-                  <div style={{
+                  <div ref={el => virarBalao(el)} style={{
                     position:'absolute', left: Math.round(wordHover.mx) + 12, top: Math.round(wordHover.my) + 12,
                     pointerEvents:'none', zIndex:5,
                     background:'rgba(5,11,20,0.96)', border:`1px solid ${wordHover.item.displayColor}66`,

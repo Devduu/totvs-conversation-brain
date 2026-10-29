@@ -4,6 +4,7 @@ import { useT } from '../context/AppContext';
 import { getCerebro, getCarregadoEm } from '../services/api';
 import { lighten } from '../lib/colors';
 import { useTamanho } from '../hooks/useTamanho';
+import { virarBalao } from '../lib/balao';
 // Tela do Cerebro Comercial: a rede de conhecimento acumulada.
 // Grafo desenhado em canvas com simulacao de forcas, pan, zoom e busca de no.
 function BrainScreen({ lang }) {
@@ -403,10 +404,11 @@ function BrainScreen({ lang }) {
         if (v > cap) { n.vx = n.vx/v*cap; n.vy = n.vy/v*cap; }
         n.x += n.vx;
         n.y += n.vy;
-        // Boundary
+        // Boundary: na horizontal conta a meia largura do rotulo, pra ele nao cortar
         const pad = 30;
-        if (n.x < pad) { n.x = pad; n.vx = Math.abs(n.vx)*0.4; }
-        if (n.x > W-pad) { n.x = W-pad; n.vx = -Math.abs(n.vx)*0.4; }
+        const padX = Math.max(pad, caixaDoNo(n).mw * 1.25 + 4);
+        if (n.x < padX) { n.x = padX; n.vx = Math.abs(n.vx)*0.4; }
+        if (n.x > W-padX) { n.x = W-padX; n.vx = -Math.abs(n.vx)*0.4; }
         if (n.y < pad) { n.y = pad; n.vy = Math.abs(n.vy)*0.4; }
         if (n.y > H-pad) { n.y = H-pad; n.vy = -Math.abs(n.vy)*0.4; }
       });
@@ -836,7 +838,7 @@ function BrainScreen({ lang }) {
               const v = Math.round(data[churnHover.idx]);
               const m = churnMo[churnHover.idx];
               return (
-                <div style={{
+                <div ref={el => virarBalao(el)} style={{
                   position:'absolute', left: Math.round(churnHover.mx) + 12, top: Math.round(churnHover.my) + 12,
                   pointerEvents:'none', zIndex:5,
                   background:'rgba(5,11,20,0.96)', border:'1px solid rgba(31,181,219,0.35)',

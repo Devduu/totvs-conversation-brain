@@ -7,6 +7,7 @@ import { getDashboard, getReuniao } from '../services/api';
 import { scoreColor } from '../lib/colors';
 import { useTamanho } from '../hooks/useTamanho';
 import { pontosDaSerie, linhaReta } from '../lib/curva';
+import { virarBalao } from '../lib/balao';
 // Tela de Dashboard: visao consolidada para o Diretor Comercial.
 // Indicadores do periodo, padroes detectados, clientes em risco e exportacao.
 function DashScreen({ lang, setScreen, setResult }) {
@@ -365,7 +366,7 @@ function DashScreen({ lang, setScreen, setResult }) {
           {heatHover && (() => {
             const v = heat[heatHover.ri][heatHover.ci];
             return (
-              <div style={{ position:'absolute', left: Math.round(heatHover.mx)+12, top: Math.round(heatHover.my)+12, pointerEvents:'none', zIndex:5, background:'rgba(5,11,20,0.96)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:6, padding:'7px 10px', fontSize:11, color:'var(--text)', whiteSpace:'nowrap', boxShadow:'0 6px 18px rgba(0,0,0,0.45)' }}>
+              <div ref={el => virarBalao(el)} style={{ position:'absolute', left: Math.round(heatHover.mx)+12, top: Math.round(heatHover.my)+12, pointerEvents:'none', zIndex:5, background:'rgba(5,11,20,0.96)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:6, padding:'7px 10px', fontSize:11, color:'var(--text)', whiteSpace:'nowrap', boxShadow:'0 6px 18px rgba(0,0,0,0.45)' }}>
                 <b>{seg(segs[heatHover.ri], lang)}</b> × <b>{rh[heatHover.ci]}</b> · <b>{v}</b> {lang==='pt'?'menções':'mentions'}
               </div>
             );
